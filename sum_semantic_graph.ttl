@@ -1,0 +1,85 @@
+@base <https://example.org/pyodide/sum-example/> .
+@prefix ex:   <https://example.org/pyodide/sum-example/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix bfo:  <https://example.org/bfo/> .
+
+#################################################################
+
+# Engine (Pyodide) as a PROV SoftwareAgent
+
+#################################################################
+
+ex:PyodideEngine a prov:SoftwareAgent ;
+  prov:label "Pyodide JavaScript/WASM Python runtime" ;
+  prov:atLocation <https://www.npmjs.com/package/pyodide> .
+
+#################################################################
+
+# Artefacts: requirements file + Python code
+
+#################################################################
+
+ex:SumRequirements a prov:Entity ;
+  prov:label "Python requirements.txt for sum node" ;
+  prov:atLocation <https://example.org/pyodide/requirements.txt> .
+
+ex:SumCode a prov:Entity ;
+  prov:label "Python script implementing sum for QUDT quantities" ;
+  prov:atLocation <https://example.org/pyodide/sum_mm.py> .
+
+#################################################################
+
+# Plan: how to run this node
+
+#################################################################
+
+ex:SumNodePlan a prov:Plan ;
+  prov:label "Plan: sum two QUDT QuantityValues in millimeters using Pyodide" ;
+  # The app can inspect these prov:used links to know what to load
+  prov:used ex:PyodideEngine, ex:SumRequirements, ex:SumCode .
+
+#################################################################
+
+# Inputs: two QUDT quantity values in millimeters
+
+#################################################################
+
+ex:inputLength1 a qudt:QuantityValue ;
+  qudt:numericValue "2.0"^^xsd:decimal ;
+  qudt:unit unit:MilliM .
+
+ex:inputLength2 a qudt:QuantityValue ;
+  qudt:numericValue "3.0"^^xsd:decimal ;
+  qudt:unit unit:MilliM .
+
+#################################################################
+
+# Activity describing this specific run
+
+#################################################################
+
+ex:SumRun_1 a prov:Activity ;
+  prov:label "Execution: sum two millimeter values" ;
+  prov:hadPlan ex:SumNodePlan ;
+  prov:used ex:inputLength1, ex:inputLength2 ;
+  prov:wasAssociatedWith ex:PyodideEngine .
+
+# Explicit BFO-style input links to the Activity
+
+ex:inputLength1 bfo:is_input_of ex:SumRun_1 .
+ex:inputLength2 bfo:is_input_of ex:SumRun_1 .
+
+#################################################################
+
+# Result (this is what the Python code will add)
+
+#################################################################
+
+#ex:sumResult1 a qudt:QuantityValue ;
+#  qudt:numericValue "5.0"^^xsd:decimal ;
+#  qudt:unit unit:MilliM ;
+#  prov:wasGeneratedBy ex:SumRun_1 ;
+#  prov:wasDerivedFrom ex:inputLength1, ex:inputLength2 .
