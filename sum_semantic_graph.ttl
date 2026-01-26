@@ -1,5 +1,5 @@
-@base <https://example.org/pyodide/sum-example/> .
-@prefix ex:   <https://example.org/pyodide/sum-example/> .
+@base <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
+@prefix :   <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix qudt: <http://qudt.org/schema/qudt/> .
 @prefix unit: <http://qudt.org/vocab/unit/> .
@@ -12,7 +12,7 @@
 
 #################################################################
 
-ex:PyodideEngine a prov:SoftwareAgent ;
+:PyodideEngine a prov:SoftwareAgent ;
   prov:label "Pyodide JavaScript/WASM Python runtime" ;
   prov:atLocation <https://www.npmjs.com/package/pyodide> .
 
@@ -22,13 +22,13 @@ ex:PyodideEngine a prov:SoftwareAgent ;
 
 #################################################################
 
-ex:SumRequirements a prov:Entity ;
+:SumRequirements a prov:Entity ;
   prov:label "Python requirements.txt for sum node" ;
-  prov:atLocation <https://example.org/pyodide/requirements.txt> .
+  prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/requirements.txt> .
 
-ex:SumCode a prov:Entity ;
+:SumCode a prov:Entity ;
   prov:label "Python script implementing sum for QUDT quantities" ;
-  prov:atLocation <https://example.org/pyodide/sum_mm.py> .
+  prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/sum_mm.py> .
 
 #################################################################
 
@@ -36,10 +36,10 @@ ex:SumCode a prov:Entity ;
 
 #################################################################
 
-ex:SumNodePlan a prov:Plan ;
+:SumNodePlan a prov:Plan ;
   prov:label "Plan: sum two QUDT QuantityValues in millimeters using Pyodide" ;
   # The app can inspect these prov:used links to know what to load
-  prov:used ex:PyodideEngine, ex:SumRequirements, ex:SumCode .
+  prov:used :PyodideEngine, :SumRequirements, :SumCode .
 
 #################################################################
 
@@ -47,11 +47,11 @@ ex:SumNodePlan a prov:Plan ;
 
 #################################################################
 
-ex:inputLength1 a qudt:QuantityValue ;
+:inputLength1 a qudt:QuantityValue ;
   qudt:numericValue "2.0"^^xsd:decimal ;
   qudt:unit unit:MilliM .
 
-ex:inputLength2 a qudt:QuantityValue ;
+:inputLength2 a qudt:QuantityValue ;
   qudt:numericValue "3.0"^^xsd:decimal ;
   qudt:unit unit:MilliM .
 
@@ -61,16 +61,16 @@ ex:inputLength2 a qudt:QuantityValue ;
 
 #################################################################
 
-ex:SumRun_1 a prov:Activity ;
+:SumRun_1 a prov:Activity ;
   prov:label "Execution: sum two millimeter values" ;
-  prov:hadPlan ex:SumNodePlan ;
-  prov:used ex:inputLength1, ex:inputLength2 ;
-  prov:wasAssociatedWith ex:PyodideEngine .
+  prov:hadPlan :SumNodePlan ;
+  prov:used :inputLength1, :inputLength2 ;
+  prov:wasAssociatedWith :PyodideEngine .
 
 # Explicit BFO-style input links to the Activity
 
-ex:inputLength1 bfo:is_input_of ex:SumRun_1 .
-ex:inputLength2 bfo:is_input_of ex:SumRun_1 .
+:inputLength1 bfo:is_input_of :SumRun_1 .
+:inputLength2 bfo:is_input_of :SumRun_1 .
 
 #################################################################
 
@@ -78,8 +78,8 @@ ex:inputLength2 bfo:is_input_of ex:SumRun_1 .
 
 #################################################################
 
-#ex:sumResult1 a qudt:QuantityValue ;
+#:sumResult1 a qudt:QuantityValue ;
 #  qudt:numericValue "5.0"^^xsd:decimal ;
 #  qudt:unit unit:MilliM ;
-#  prov:wasGeneratedBy ex:SumRun_1 ;
-#  prov:wasDerivedFrom ex:inputLength1, ex:inputLength2 .
+#  prov:wasGeneratedBy :SumRun_1 ;
+#  prov:wasDerivedFrom :inputLength1, :inputLength2 .
