@@ -1,21 +1,17 @@
-name: "Test Pyodide Semantic Workflow (PROV-O, Node-only)"
+name: "Test Pyodide Semantic Workflow (PROV-O, Docker)"
 
 on:
   push:
-    branches:
-      - main
-      - master
-
+    branches: [main, master]
   pull_request:
-
   workflow_dispatch:
     inputs:
       example_path:
-        description: "Path to example Python file (relative to repo root)"
+        description: "Path to example Python file"
         required: false
         default: "sum_mm.py"
       fail_on_missing_result:
-        description: "Fail the job if no semantic result is produced"
+        description: "Fail if no semantic result is produced"
         required: false
         default: "false"
 
@@ -23,6 +19,9 @@ jobs:
   run-pyodide-prov:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    container:
+      image: pyodide/pyodide-env:0.23.4
 
     env:
       EXAMPLE_PY: >-
@@ -35,7 +34,6 @@ jobs:
             github.event.inputs.fail_on_missing_result ||
             'false' }}
 
-      # PROV-O context
       PROV_ACTIVITY_ID: "ci:pyodide-execution"
       PROV_AGENT_ID: "ci:github-actions"
       PROV_PLAN: "sum_semantic_graph.ttl"
@@ -44,16 +42,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install Pyodide (Node WASM runtime)
-        run: |
-          npm install --no-audit --no-fund pyodide@0.23.4
-
-      - name: Execute PROV-O activity in Pyodide
+      - name: Run Pyodide PROV workflow
         run: |
           node scripts/pyodide-run.js \
             "$EXAMPLE_PY" \
@@ -62,11 +51,10 @@ jobs:
       - name: Verify PROV-O graph exists
         run: |
           test -f sum_semantic_graph.ttl || (
-            echo "❌ Missing PROV-O graph: sum_semantic_graph.ttl" &&
-            exit 1
+            echo "❌ Missing PROV-O graph" && exit 1
           )
 
-      - name: Upload PROV-O artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: pyodide-prov-results
