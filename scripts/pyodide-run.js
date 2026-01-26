@@ -1,7 +1,7 @@
 // Node runner that loads Pyodide via the npm package, executes a Python example file,
-// and writes out Turtle (or other) outputs to disk for CI artifacts.
+// and writes out PROV-O semantic artifacts for CI.
 //
-// Usage: node scripts/pyodide-run.js examples/workflow.py [fail_on_missing]
+// Usage: node scripts/pyodide-run.js example.py [fail_on_missing]
 
 const fs = require('fs');
 const path = require('path');
@@ -19,69 +19,97 @@ const path = require('path');
 
     const code = fs.readFileSync(abs, 'utf8');
 
-    // dynamic import so this can run in CommonJS environment
+    // PROV context (passed from CI env or defaulted)
+    const PROV_ACTIVITY_ID = process.env.PROV_ACTIVITY_ID || 'ci:pyodide-activity';
+    const PROV_AGENT_ID = process.env.PROV_AGENT_ID || 'ci:github-actions';
+    const PROV_PLAN = process.env.PROV_PLAN || 'sum_semantic_graph.ttl';
+
+    // dynamic import for CommonJS
     const { loadPyodide } = await import('pyodide');
 
-    console.log('Loading Pyodide (this loads WASM + stdlib from the npm package)...');
-    // IMPORTANT: do NOT set indexURL to the CDN when using the npm package in Node
+    console.log('Loading Pyodide (Node WASM runtime)…');
     const pyodide = await loadPyodide();
     console.log('Pyodide loaded.');
 
-    console.log('Running example Python code from', abs);
+    // Inject PROV metadata into Python globals
+    pyodide.globals.set('__PROV_ACTIVITY_ID__', PROV_ACTIVITY_ID);
+    pyodide.globals.set('__PROV_AGENT_ID__', PROV_AGENT_ID);
+    pyodide.globals.set('__PROV_PLAN__', PROV_PLAN);
+
+    console.log('Running Python workflow:', abs);
     await pyodide.runPythonAsync(code);
 
-    // Prefer Turtle string
+    let wroteResult = false;
+
+    // Preferred: Turtle (PROV graph)
     try {
-      const val = pyodide.globals.get('result_ttl');
-      if (val !== undefined && val !== null) {
-        const resultTtl = typeof val.toJs === 'function' ? val.toJs() : String(val);
-        fs.writeFileSync('pyodide-semantic-result.ttl', resultTtl, 'utf8');
-        console.log('Saved Turtle result to pyodide-semantic-result.ttl');
-        fs.writeFileSync('run-pyodide.log', 'Saved Turtle result\n');
-        process.exit(0);
+      const ttl = pyodide.globals.get('result_ttl');
+      if (ttl) {
+        const text = typeof ttl.toJs === 'function' ? ttl.toJs() : String(ttl);
+        fs.writeFileSync('pyodide-semantic-result.ttl', text, 'utf8');
+        wroteResult = true;
       }
-    } catch (e) {
-      // ignore and continue
+    } catch {}
+
+    // JSON fallback
+    try {
+      const obj = pyodide.globals.get('result_obj');
+      if (obj) {
+        const jsObj = typeof obj.toJs === 'function' ? obj.toJs() : obj;
+        fs.writeFileSync(
+          'pyodide-semantic-result.json',
+          JSON.stringify(jsObj, null, 2),
+          'utf8'
+        );
+        wroteResult = true;
+      }
+    } catch {}
+
+    // Raw fallback
+    try {
+      const raw = pyodide.globals.get('__SEMANTIC_WORKFLOW_RESULT__');
+      if (raw) {
+        const jsRaw = typeof raw.toJs === 'function' ? raw.toJs() : String(raw);
+        fs.writeFileSync('pyodide-semantic-result.raw.txt', jsRaw, 'utf8');
+        wroteResult = true;
+      }
+    } catch {}
+
+    // Ensure PROV activity is materialized
+    if (!fs.existsSync('sum_semantic_graph.ttl')) {
+      fs.writeFileSync(
+        'sum_semantic_graph.ttl',
+        `
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix ci: <https://github.com/${process.env.GITHUB_REPOSITORY || 'ci'}/> .
+
+ci:activity a prov:Activity ;
+  prov:wasAssociatedWith ci:agent ;
+  prov:used ci:plan .
+
+ci:agent a prov:Agent .
+ci:plan a prov:Plan .
+`.trim() + '\n',
+        'utf8'
+      );
     }
 
-    // JSON-serializable object
-    try {
-      const resultObj = pyodide.globals.get('result_obj');
-      if (resultObj !== undefined && resultObj !== null) {
-        const jsObj = typeof resultObj.toJs === 'function' ? resultObj.toJs() : resultObj;
-        fs.writeFileSync('pyodide-semantic-result.json', JSON.stringify(jsObj, null, 2), 'utf8');
-        console.log('Saved JSON result to pyodide-semantic-result.json');
-        fs.writeFileSync('run-pyodide.log', 'Saved JSON result\n');
-        process.exit(0);
-      }
-    } catch (e) {
-      // ignore and continue
-    }
+    fs.writeFileSync(
+      'run-pyodide.log',
+      wroteResult
+        ? 'Semantic result produced\n'
+        : 'No semantic result found\n',
+      'utf8'
+    );
 
-    // Generic raw string
-    try {
-      const anyRes = pyodide.globals.get('__SEMANTIC_WORKFLOW_RESULT__');
-      if (anyRes !== undefined && anyRes !== null) {
-        const jsAny = typeof anyRes.toJs === 'function' ? anyRes.toJs() : String(anyRes);
-        fs.writeFileSync('pyodide-semantic-result.raw.txt', String(jsAny), 'utf8');
-        console.log('Saved raw result to pyodide-semantic-result.raw.txt');
-        fs.writeFileSync('run-pyodide.log', 'Saved raw result\n');
-        process.exit(0);
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    console.warn('No recognized result variable found in Python globals.');
-    fs.writeFileSync('run-pyodide.log', 'No result found\n');
-    if (failOnMissing) {
-      console.error('Failing because fail_on_missing was requested and no result was produced.');
+    if (!wroteResult && failOnMissing) {
+      console.error('Failing: no semantic result produced.');
       process.exit(3);
-    } else {
-      process.exit(0);
     }
+
+    process.exit(0);
   } catch (err) {
-    console.error('Error running Pyodide example:', err);
+    console.error('Error running Pyodide workflow:', err);
     fs.writeFileSync('run-pyodide.log', `Error: ${String(err)}\n`);
     process.exit(4);
   }

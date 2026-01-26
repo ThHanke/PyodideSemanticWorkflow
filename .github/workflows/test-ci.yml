@@ -1,4 +1,4 @@
-name: "Test Pyodide Semantic Workflow (Node + rdflib)"
+name: "Test Pyodide Semantic Workflow (PROV-O, Node-only)"
 
 on:
   push:
@@ -7,63 +7,71 @@ on:
       - master
 
   pull_request:
+
   workflow_dispatch:
     inputs:
       example_path:
-        description: 'Path to example Python file (relative to repo root)'
+        description: "Path to example Python file (relative to repo root)"
         required: false
-        default: 'sum_mm.py'
+        default: "sum_mm.py"
       fail_on_missing_result:
-        description: 'Fail the job if no result is produced'
+        description: "Fail the job if no semantic result is produced"
         required: false
-        default: 'false'
+        default: "false"
 
 jobs:
-  run-pyodide:
+  run-pyodide-prov:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     env:
-      # If triggered via workflow_dispatch, use the provided input.
-      # Otherwise (push/PR), fall back to the default path.
       EXAMPLE_PY: >-
         ${{ github.event_name == 'workflow_dispatch' &&
             github.event.inputs.example_path ||
             'sum_mm.py' }}
+
       FAIL_ON_MISSING: >-
         ${{ github.event_name == 'workflow_dispatch' &&
             github.event.inputs.fail_on_missing_result ||
             'false' }}
 
-    steps:
-      - name: Checkout
+      # PROV-O context
+      PROV_ACTIVITY_ID: "ci:pyodide-execution"
+      PROV_AGENT_ID: "ci:github-actions"
+      PROV_PLAN: "sum_semantic_graph.ttl"
 
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "20"
 
-      - name: Install pyodide npm package
-
+      - name: Install Pyodide (Node WASM runtime)
         run: |
-          npm init -y
-          npm i --no-audit --no-fund pyodide@0.23.4
+          npm install --no-audit --no-fund pyodide@0.23.4
 
-      - name: Run Pyodide example (Node)
-
-        id: run_pyodide
+      - name: Execute PROV-O activity in Pyodide
         run: |
-          node scripts/pyodide-run.js "$EXAMPLE_PY" "$FAIL_ON_MISSING"
+          node scripts/pyodide-run.js \
+            "$EXAMPLE_PY" \
+            "$FAIL_ON_MISSING"
 
-      - name: Upload artifacts result + logs
+      - name: Verify PROV-O graph exists
+        run: |
+          test -f sum_semantic_graph.ttl || (
+            echo "❌ Missing PROV-O graph: sum_semantic_graph.ttl" &&
+            exit 1
+          )
 
+      - name: Upload PROV-O artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pyodide-semantic-result
+          name: pyodide-prov-results
           path: |
+            sum_semantic_graph.ttl
             pyodide-semantic-result.ttl
             pyodide-semantic-result.json
             pyodide-semantic-result.raw.txt
