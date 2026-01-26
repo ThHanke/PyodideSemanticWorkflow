@@ -1,7 +1,7 @@
 // Node runner that loads Pyodide via the npm package, executes a Python example file,
 // and writes out Turtle (or other) outputs to disk for CI artifacts.
 //
-// Usage: node scripts/run-pyodide-example.js examples/workflow.py [fail_on_missing]
+// Usage: node scripts/pyodide-run.js examples/workflow.py [fail_on_missing]
 
 const fs = require('fs');
 const path = require('path');
@@ -22,18 +22,11 @@ const path = require('path');
     // dynamic import so this can run in CommonJS environment
     const { loadPyodide } = await import('pyodide');
 
-    console.log('Loading Pyodide (this downloads the WASM and stdlib)...');
-    const pyodide = await loadPyodide({
-      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/'
-    });
+    console.log('Loading Pyodide (this loads WASM + stdlib from the npm package)...');
+    // IMPORTANT: do NOT set indexURL to the CDN when using the npm package in Node
+    const pyodide = await loadPyodide();
     console.log('Pyodide loaded.');
 
-    // Run the user's python example. The example should set:
-    //   result_ttl  -> string containing Turtle serialization (preferred)
-    // or:
-    //   result_obj  -> Python object (will be JSON-serialized)
-    // or:
-    //   __SEMANTIC_WORKFLOW_RESULT__ -> raw string
     console.log('Running example Python code from', abs);
     await pyodide.runPythonAsync(code);
 
