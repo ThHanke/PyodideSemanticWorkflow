@@ -5,13 +5,14 @@ on:
     branches:
       - main
       - master
+
   pull_request:
   workflow_dispatch:
     inputs:
       example_path:
         description: 'Path to example Python file (relative to repo root)'
         required: false
-        default: 'examples/workflow.py'
+        default: 'sum_mm.py'
       fail_on_missing_result:
         description: 'Fail the job if no result is produced'
         required: false
@@ -21,29 +22,44 @@ jobs:
   run-pyodide:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    env:
+      # If triggered via workflow_dispatch, use the provided input.
+      # Otherwise (push/PR), fall back to the default path.
+      EXAMPLE_PY: >-
+        ${{ github.event_name == 'workflow_dispatch' &&
+            github.event.inputs.example_path ||
+            'sum_mm.py' }}
+      FAIL_ON_MISSING: >-
+        ${{ github.event_name == 'workflow_dispatch' &&
+            github.event.inputs.fail_on_missing_result ||
+            'false' }}
+
     steps:
       - name: Checkout
+
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
       - name: Install pyodide npm package
+
         run: |
           npm init -y
           npm i --no-audit --no-fund pyodide@0.23.4
 
       - name: Run Pyodide example (Node)
+
         id: run_pyodide
-        env:
-          EXAMPLE_PY: ${{ github.event.inputs.example_path || 'examples/workflow.py' }}
-          FAIL_ON_MISSING: ${{ github.event.inputs.fail_on_missing_result || 'false' }}
         run: |
-          node scripts/run-pyodide-example.js "$EXAMPLE_PY" "$FAIL_ON_MISSING"
+          node scripts/pyodide-run.js "$EXAMPLE_PY" "$FAIL_ON_MISSING"
 
       - name: Upload artifacts: result + logs
+
         uses: actions/upload-artifact@v4
         with:
           name: pyodide-semantic-result
