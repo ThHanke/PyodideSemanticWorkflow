@@ -58,7 +58,7 @@ jobs:
         run: |
           node scripts/pyodide-run.js "$EXAMPLE_PY" "$FAIL_ON_MISSING"
 
-      - name: Upload artifacts: result + logs
+      - name: Upload artifacts result + logs
 
         uses: actions/upload-artifact@v4
         with:
