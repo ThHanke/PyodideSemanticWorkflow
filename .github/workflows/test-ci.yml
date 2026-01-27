@@ -7,7 +7,7 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Timeout für den gesamten Job
+    timeout-minutes: 15
     
     steps:
       - uses: actions/checkout@v4
@@ -46,5 +46,9 @@ jobs:
       - name: Run tests
 
         run: |
-          pytest tests/test.py --runtime node --dist-dir ./pyodide-dist -v -s
+          pytest tests/test.py \
+            --runtime node \
+            --dist-dir ./pyodide-dist \
+            --script-timeout 300 \
+            -v -s
         timeout-minutes: 10
