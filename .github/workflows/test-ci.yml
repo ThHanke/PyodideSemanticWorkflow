@@ -49,11 +49,12 @@ jobs:
           pytest tests/test.py --runtime node --dist-dir ./pyodide-dist -v -s
         timeout-minutes: 10
       
-      - name: Upload result graph
+      - name: Commit result.ttl
 
-        if: always()  # Lädt auch bei Test-Fehler hoch
-        uses: actions/upload-artifact@v4
-        with:
-          name: result-graph
-          path: result.ttl
-          if-no-files-found: warn
+        if: github.event_name == 'push' && success()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add result.ttl
+          git diff --staged --quiet || git commit -m "Update result.ttl from test run"
+          git push
