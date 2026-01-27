@@ -29,9 +29,10 @@ def test_sum_mm_node(selenium_standalone):
                 continue
             reqs.append(line)
     
-    # 4) Packages mit micropip installieren (run_js wrapper für async)
+    # 4) micropip laden und dann Packages installieren
     if reqs:
         selenium_standalone.run_js(f"""
+            await pyodide.loadPackage("micropip");
             return await pyodide.runPythonAsync(`
                 import micropip
                 await micropip.install({reqs!r})
