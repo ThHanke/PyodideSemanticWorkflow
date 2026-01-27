@@ -1,0 +1,49 @@
+@prefix bfo: <https://example.org/bfo/> .
+@prefix ex: <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<#sumResult_273eda82e8c44b84b510c94fb01a906f> a qudt:QuantityValue ;
+    qudt:numericValue 5.0 ;
+    qudt:unit unit:MilliM ;
+    prov:wasDerivedFrom ex:inputLength1,
+        ex:inputLength2 ;
+    prov:wasGeneratedBy ex:SumRun_1 .
+
+ex:SumCode a prov:Entity ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/sum_mm.py> ;
+    prov:label "Python script implementing sum for QUDT quantities" .
+
+ex:SumNodePlan a prov:Plan ;
+    prov:label "Plan: sum two QUDT QuantityValues in millimeters using Pyodide" ;
+    prov:used ex:PyodideEngine,
+        ex:SumCode,
+        ex:SumRequirements .
+
+ex:SumRequirements a prov:Entity ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/requirements.txt> ;
+    prov:label "Python requirements.txt for sum node" .
+
+ex:PyodideEngine a prov:SoftwareAgent ;
+    prov:atLocation <https://www.npmjs.com/package/pyodide> ;
+    prov:label "Pyodide JavaScript/WASM Python runtime" .
+
+ex:inputLength1 a qudt:QuantityValue ;
+    qudt:numericValue 2.0 ;
+    qudt:unit unit:MilliM ;
+    bfo:is_input_of ex:SumRun_1 .
+
+ex:inputLength2 a qudt:QuantityValue ;
+    qudt:numericValue 3.0 ;
+    qudt:unit unit:MilliM ;
+    bfo:is_input_of ex:SumRun_1 .
+
+ex:SumRun_1 a prov:Activity ;
+    prov:hadPlan ex:SumNodePlan ;
+    prov:label "Execution: sum two millimeter values" ;
+    prov:used ex:inputLength1,
+        ex:inputLength2 ;
+    prov:wasAssociatedWith ex:PyodideEngine .
+
