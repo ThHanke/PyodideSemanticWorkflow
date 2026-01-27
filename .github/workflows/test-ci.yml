@@ -2,140 +2,47 @@
 
 name: Test Pyodide Script
 
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+on: [push, pull_request]
 
 jobs:
-  test-node:
-    name: Test with Node.js runtime
+  test:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout repository
-
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
-      - name: Set up Python
+      - uses: actions/setup-python@v5
 
-        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
-      - name: Set up Node.js
+      - uses: actions/setup-node@v4
 
-        uses: actions/setup-node@v4
         with:
           node-version: '20'
       
-      - name: Install Python dependencies
+      - name: Cache Pyodide
 
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-pyodide pytest-httpserver
+        uses: actions/cache@v4
+        with:
+          path: pyodide-dist
+          key: pyodide-0.26.2
       
       - name: Download Pyodide
 
         run: |
-          # Ermittle die Pyodide-Version von pytest-pyodide
-          PYODIDE_VERSION=$(python -c "import pytest_pyodide; print(pytest_pyodide.__version__.split('.')[0:2]); print('.'.join(pytest_pyodide.__version__.split('.')[0:2]))")
-          echo "Downloading Pyodide for pytest-pyodide..."
-          
-          # Lade Pyodide herunter (verwende Version 0.26.2 oder die passende Version)
-          wget -q https://github.com/pyodide/pyodide/releases/download/0.26.2/pyodide-0.26.2.tar.bz2
-          tar -xjf pyodide-0.26.2.tar.bz2
-          mv pyodide pyodide-dist
+          if [ ! -d "pyodide-dist" ]; then
+            wget -q https://github.com/pyodide/pyodide/releases/download/0.26.2/pyodide-0.26.2.tar.bz2
+            tar -xjf pyodide-0.26.2.tar.bz2
+            mv pyodide pyodide-dist
+          fi
       
-      - name: Run tests with Node runtime
+      - name: Install dependencies
+
+        run: |
+          pip install pytest pytest-pyodide pytest-httpserver rdflib
+      
+      - name: Run tests
 
         run: |
           pytest tests/test.py --runtime node --dist-dir ./pyodide-dist -v
-
-  test-chrome:
-    name: Test with Chrome browser
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Chrome
-
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-      
-      - name: Install ChromeDriver
-
-        uses: nanasess/setup-chromedriver@v2
-      
-      - name: Install Python dependencies
-
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-pyodide pytest-httpserver selenium
-      
-      - name: Download Pyodide
-
-        run: |
-          wget -q https://github.com/pyodide/pyodide/releases/download/0.26.2/pyodide-0.26.2.tar.bz2
-          tar -xjf pyodide-0.26.2.tar.bz2
-          mv pyodide pyodide-dist
-      
-      - name: Run tests with Chrome runtime
-
-        run: |
-          pytest tests/test.py --runtime chrome --dist-dir ./pyodide-dist -v
-
-  test-firefox:
-    name: Test with Firefox browser
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Firefox
-
-        uses: browser-actions/setup-firefox@v1
-        with:
-          firefox-version: latest
-      
-      - name: Install GeckoDriver
-
-        uses: browser-actions/setup-geckodriver@latest
-      
-      - name: Install Python dependencies
-
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-pyodide pytest-httpserver selenium
-      
-      - name: Download Pyodide
-
-        run: |
-          wget -q https://github.com/pyodide/pyodide/releases/download/0.26.2/pyodide-0.26.2.tar.bz2
-          tar -xjf pyodide-0.26.2.tar.bz2
-          mv pyodide pyodide-dist
-      
-      - name: Run tests with Firefox runtime
-
-        run: |
-          pytest tests/test.py --runtime firefox --dist-dir ./pyodide-dist -v

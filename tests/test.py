@@ -4,47 +4,46 @@ import pathlib
 import pytest
 
 
-@pytest.mark.driver_timeout(60)
-async def test_sum_mm_node(selenium):
-    # 1) Requirements mit micropip installieren
-    await selenium.load_package("micropip")
+def test_sum_mm_node(selenium_standalone):
+    """Test sum_mm.py with Pyodide in Node.js runtime."""
     
+    # 1) Pfade vorbereiten
     root = pathlib.Path(__file__).resolve().parents[1]
     req_file = root / "requirements.txt"
+    sum_mm_path = root / "sum_mm.py"
+    ttl_path = root / "sum_semantic_graph.ttl"
     
+    assert sum_mm_path.exists(), f"sum_mm.py not found: {sum_mm_path}"
+    assert ttl_path.exists(), f"Input TTL file not found: {ttl_path}"
+    
+    # 2) Dateien einlesen
+    sum_mm_code = sum_mm_path.read_text(encoding="utf-8")
+    input_ttl = ttl_path.read_text(encoding="utf-8")
+    
+    # 3) Requirements sammeln
+    reqs = []
     if req_file.exists():
-        reqs = []
         for line in req_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             reqs.append(line)
-        
-        if reqs:
-            await selenium.run_async(f"""
-                import micropip
-                await micropip.install({reqs!r})
-            """)
-
-    # 2) sum_mm.py laden
-    sum_mm_path = root / "sum_mm.py"
-    sum_mm_code = sum_mm_path.read_text(encoding="utf-8")
     
-    # 3) Input-Graph einlesen
-    ttl_path = root / "sum_semantic_graph.ttl"
-    assert ttl_path.exists(), f"Input TTL file not found: {ttl_path}"
-    input_ttl = ttl_path.read_text(encoding="utf-8")
-
-    # 4) In Pyodide ausführen
-    result_ttl = await selenium.run_async(f"""
-        {sum_mm_code}
+    # 4) Code in Pyodide ausführen
+    result_ttl = selenium_standalone.run(f"""
+        import micropip
+        await micropip.install({reqs!r})
         
+        # sum_mm.py Code laden (ohne __main__ Teil)
+        exec({sum_mm_code!r})
+        
+        # Input-Graph verarbeiten
         input_ttl = {input_ttl!r}
         result = run(input_ttl)
         result
     """)
-
-    # 5) Ergebnis prüfen
+    
+    # 5) Ergebnis mit rdflib in Python prüfen
     from rdflib import Graph, Namespace
     from rdflib.namespace import RDF
 
@@ -54,9 +53,11 @@ async def test_sum_mm_node(selenium):
     QUDT = Namespace("http://qudt.org/schema/qudt/")
     UNIT = Namespace("http://qudt.org/vocab/unit/")
 
+    # Alle QuantityValues sammeln
     qvs = list(g.subjects(RDF.type, QUDT.QuantityValue))
-    assert len(qvs) >= 3
+    assert len(qvs) >= 3, f"Expected at least 3 QuantityValues, found {len(qvs)}"
 
+    # Prüfen, ob ein QV mit Wert 5.0 MilliM existiert
     found_sum = False
     for qv in qvs:
         val = g.value(qv, QUDT.numericValue)
