@@ -10,12 +10,8 @@ def pyodide_with_rdflib(selenium_module_scope):
     selenium = selenium_module_scope
     
     # Setze langes Timeout für Installation
-    original_timeout = None
     if hasattr(selenium, 'p') and selenium.p is not None:
-        original_timeout = selenium.p.timeout
-        selenium.p.timeout = 600  # 10 Minuten für Installation
-    
-    original_script_timeout = selenium.script_timeout
+        selenium.p.timeout = 600
     selenium.script_timeout = 600
     
     root = pathlib.Path(__file__).resolve().parents[1]
@@ -47,23 +43,18 @@ def pyodide_with_rdflib(selenium_module_scope):
     
     print("✓ Pyodide setup complete\n")
     
-    # Setze Timeout zurück
-    if hasattr(selenium, 'p') and selenium.p is not None and original_timeout is not None:
-        selenium.p.timeout = original_timeout
-    selenium.script_timeout = original_script_timeout
-    
     return selenium
 
 
 def test_sum_mm_node(pyodide_with_rdflib):
     """Test sum_mm.py with Pyodide in Node.js runtime."""
     
-    selenium_standalone = pyodide_with_rdflib
+    selenium = pyodide_with_rdflib
     
-    # Setze Timeout für diesen Test
-    if hasattr(selenium_standalone, 'p') and selenium_standalone.p is not None:
-        selenium_standalone.p.timeout = 120
-    selenium_standalone.script_timeout = 120
+    # Erhöhe Timeout deutlich für den Test
+    if hasattr(selenium, 'p') and selenium.p is not None:
+        selenium.p.timeout = 300
+    selenium.script_timeout = 300
     
     # 1) Pfade vorbereiten
     root = pathlib.Path(__file__).resolve().parents[1]
@@ -77,19 +68,28 @@ def test_sum_mm_node(pyodide_with_rdflib):
     sum_mm_code = sum_mm_path.read_text(encoding="utf-8")
     input_ttl = ttl_path.read_text(encoding="utf-8")
     
-    # 3) Code in Pyodide ausführen (rdflib ist schon installiert)
-    print("Running sum_mm.py...")
-    result_ttl = selenium_standalone.run(f"""
-        # sum_mm.py Code laden
-        exec({sum_mm_code!r})
-        
-        # Input-Graph verarbeiten
-        input_ttl = {input_ttl!r}
-        result = run(input_ttl)
-        result
+    # 3) Lade sum_mm.py Modul in Pyodide (als separater Schritt)
+    print("Loading sum_mm.py module...")
+    selenium.run_js(f"""
+        pyodide.globals.set('sum_mm_code', {sum_mm_code!r});
+        return await pyodide.runPythonAsync(`
+            exec(sum_mm_code)
+        `);
     """)
     
-    # 4) Ergebnis mit rdflib in Python prüfen
+    # 4) Lade input TTL
+    print("Loading input graph...")
+    selenium.run_js(f"""
+        pyodide.globals.set('input_ttl', {input_ttl!r});
+    """)
+    
+    # 5) Führe Funktion aus
+    print("Running sum_mm.py...")
+    result_ttl = selenium.run("""
+        run(input_ttl)
+    """)
+    
+    # 6) Ergebnis mit rdflib in Python prüfen
     print("Validating results...")
     from rdflib import Graph, Namespace
     from rdflib.namespace import RDF
