@@ -5,13 +5,17 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def pyodide_with_rdflib(selenium_standalone_factory):
+def pyodide_with_rdflib(selenium_module_scope):
     """Setup Pyodide with rdflib installed (runs once per test module)."""
-    selenium = selenium_standalone_factory()
+    selenium = selenium_module_scope
     
     # Setze langes Timeout für Installation
-    if hasattr(selenium, 'p'):
+    original_timeout = None
+    if hasattr(selenium, 'p') and selenium.p is not None:
+        original_timeout = selenium.p.timeout
         selenium.p.timeout = 600  # 10 Minuten für Installation
+    
+    original_script_timeout = selenium.script_timeout
     selenium.script_timeout = 600
     
     root = pathlib.Path(__file__).resolve().parents[1]
@@ -25,6 +29,7 @@ def pyodide_with_rdflib(selenium_standalone_factory):
                 continue
             reqs.append(line)
     
+    print("\n=== Setting up Pyodide environment ===")
     print("Loading micropip...")
     selenium.run_js("""
         await pyodide.loadPackage("micropip");
@@ -40,20 +45,25 @@ def pyodide_with_rdflib(selenium_standalone_factory):
                 `);
             """)
     
-    print("✓ Pyodide setup complete")
+    print("✓ Pyodide setup complete\n")
     
-    # Setze normales Timeout für Tests
-    if hasattr(selenium, 'p'):
-        selenium.p.timeout = 60
-    selenium.script_timeout = 60
+    # Setze Timeout zurück
+    if hasattr(selenium, 'p') and selenium.p is not None and original_timeout is not None:
+        selenium.p.timeout = original_timeout
+    selenium.script_timeout = original_script_timeout
     
-    yield selenium
+    return selenium
 
 
 def test_sum_mm_node(pyodide_with_rdflib):
     """Test sum_mm.py with Pyodide in Node.js runtime."""
     
     selenium_standalone = pyodide_with_rdflib
+    
+    # Setze Timeout für diesen Test
+    if hasattr(selenium_standalone, 'p') and selenium_standalone.p is not None:
+        selenium_standalone.p.timeout = 120
+    selenium_standalone.script_timeout = 120
     
     # 1) Pfade vorbereiten
     root = pathlib.Path(__file__).resolve().parents[1]
