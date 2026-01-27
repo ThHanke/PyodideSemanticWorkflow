@@ -4,9 +4,11 @@ import pathlib
 import pytest
 
 
-@pytest.mark.driver_timeout(300)  # Timeout auf 5 Minuten erhöhen
 def test_sum_mm_node(selenium_standalone):
     """Test sum_mm.py with Pyodide in Node.js runtime."""
+    
+    # Timeout für Skript-Ausführung erhöhen
+    selenium_standalone.script_timeout = 300  # 5 Minuten
     
     # 1) Pfade vorbereiten
     root = pathlib.Path(__file__).resolve().parents[1]
@@ -60,6 +62,7 @@ def test_sum_mm_node(selenium_standalone):
     """)
     
     # 7) Ergebnis mit rdflib in Python prüfen
+    print("Validating results...")
     from rdflib import Graph, Namespace
     from rdflib.namespace import RDF
 
@@ -71,6 +74,7 @@ def test_sum_mm_node(selenium_standalone):
 
     # Alle QuantityValues sammeln
     qvs = list(g.subjects(RDF.type, QUDT.QuantityValue))
+    print(f"Found {len(qvs)} QuantityValues")
     assert len(qvs) >= 3, f"Expected at least 3 QuantityValues, found {len(qvs)}"
 
     # Prüfen, ob ein QV mit Wert 5.0 MilliM existiert
@@ -84,8 +88,10 @@ def test_sum_mm_node(selenium_standalone):
             f = float(val)
         except Exception:
             continue
+        print(f"  QV: value={f}, unit={unit}")
         if f == 5.0 and unit == UNIT.MilliM:
             found_sum = True
             break
 
     assert found_sum, "No sum QuantityValue with value 5.0 MilliM found in result graph"
+    print("✓ Test passed!")
