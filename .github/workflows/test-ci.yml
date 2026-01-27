@@ -1,0 +1,60 @@
+# .github/workflows/test-pyodide.yml
+
+name: Test Pyodide Script
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+
+        with:
+          python-version: '3.11'
+      
+      - uses: actions/setup-node@v4
+
+        with:
+          node-version: '20'
+      
+      - name: Cache Pyodide
+
+        uses: actions/cache@v4
+        with:
+          path: pyodide-dist
+          key: pyodide-0.26.2
+      
+      - name: Download Pyodide
+
+        run: |
+          if [ ! -d "pyodide-dist" ]; then
+            wget -q https://github.com/pyodide/pyodide/releases/download/0.26.2/pyodide-0.26.2.tar.bz2
+            tar -xjf pyodide-0.26.2.tar.bz2
+            mv pyodide pyodide-dist
+          fi
+      
+      - name: Install dependencies
+
+        run: |
+          pip install pytest pytest-pyodide pytest-httpserver rdflib
+      
+      - name: Run tests
+
+        run: |
+          pytest tests/test.py --runtime node --dist-dir ./pyodide-dist -v -s
+        timeout-minutes: 10
+      
+      - name: Commit result.ttl
+
+        if: github.event_name == 'push' && success()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add result.ttl
+          git diff --staged --quiet || git commit -m "Update result.ttl from test run"
+          git push
