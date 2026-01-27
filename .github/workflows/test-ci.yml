@@ -1,16 +1,107 @@
-name: "Test Pyodide Semantic Workflow (official)"
+# .github/workflows/test-pyodide.yml
+
+name: Test Pyodide Script
 
 on:
   push:
-    branches: [main, master]
+    branches: [ main, develop ]
   pull_request:
+    branches: [ main, develop ]
   workflow_dispatch:
 
 jobs:
-  test-pyodide:
-    uses: pyodide/pytest-pyodide/.github/workflows/main.yaml@main
-    with:
-      python-version: "3.13"
-      pyodide-version: "0.26.4"
-      runner: "node"
-      browser: "node"
+  test-node:
+    name: Test with Node.js runtime
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Node.js
+
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Python dependencies
+
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-pyodide pytest-httpserver
+      
+      - name: Run tests with Node runtime
+
+        run: |
+          pytest tests/test.py --runtime node -v
+
+  test-chrome:
+    name: Test with Chrome browser
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Chrome
+
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+      
+      - name: Install Python dependencies
+
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-pyodide pytest-httpserver
+      
+      - name: Run tests with Chrome runtime
+
+        run: |
+          pytest tests/test.py --runtime chrome -v
+
+  test-firefox:
+    name: Test with Firefox browser
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Firefox
+
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+      
+      - name: Install Python dependencies
+
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-pyodide pytest-httpserver
+      
+      - name: Run tests with Firefox runtime
+
+        run: |
+          pytest tests/test.py --runtime firefox -v
