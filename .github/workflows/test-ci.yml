@@ -48,3 +48,12 @@ jobs:
         run: |
           pytest tests/test.py --runtime node --dist-dir ./pyodide-dist -v -s
         timeout-minutes: 10
+      
+      - name: Upload result graph
+
+        if: always()  # Lädt auch bei Test-Fehler hoch
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-graph
+          path: result.ttl
+          if-no-files-found: warn

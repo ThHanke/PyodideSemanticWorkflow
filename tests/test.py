@@ -10,12 +10,10 @@ def test_sum_mm_node(selenium_standalone, web_server_main):
     root = pathlib.Path(__file__).resolve().parents[1]
     sum_mm_path = root / "sum_mm.py"
     ttl_path = root / "sum_semantic_graph.ttl"
+    result_path = root / "result.ttl"
     
     assert sum_mm_path.exists(), f"sum_mm.py not found: {sum_mm_path}"
     assert ttl_path.exists(), f"Input TTL file not found: {ttl_path}"
-    
-    # web_server_main serviert bereits das dist_dir
-    # Wir müssen die Dateien relativ zum Server verfügbar machen
     
     print("Installing rdflib via micropip...")
     selenium_standalone.run_js("""
@@ -27,7 +25,6 @@ def test_sum_mm_node(selenium_standalone, web_server_main):
     """)
     
     print("Loading sum_mm.py from filesystem...")
-    # Lade die Dateien direkt als Python Strings (klein genug)
     sum_mm_code = sum_mm_path.read_text(encoding="utf-8")
     input_ttl = ttl_path.read_text(encoding="utf-8")
     
@@ -54,6 +51,10 @@ result
         
         return result;
     """)
+    
+    # Speichere das Ergebnis
+    print(f"Saving result to {result_path}...")
+    result_path.write_text(result_ttl, encoding="utf-8")
     
     # Validiere Ergebnis
     print("Validating results...")
@@ -85,4 +86,4 @@ result
             continue
 
     assert found_sum, "No sum QuantityValue with value 5.0 MilliM found"
-    print("✓ Test passed!")
+    print(f"✓ Test passed! Result saved to {result_path.name}")
