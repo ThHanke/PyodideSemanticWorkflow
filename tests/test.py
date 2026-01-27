@@ -20,17 +20,25 @@ def test_sum_mm_node(selenium_standalone):
     sum_mm_code = sum_mm_path.read_text(encoding="utf-8")
     input_ttl = ttl_path.read_text(encoding="utf-8")
     
-    # 3) Requirements laden (synchron!)
+    # 3) Requirements sammeln
+    reqs = []
     if req_file.exists():
         for line in req_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            # Nur Paketnamen extrahieren (ohne Version für load_package)
-            pkg_name = line.split("==")[0].split(">=")[0].split("<=")[0].strip()
-            selenium_standalone.load_package(pkg_name)
+            reqs.append(line)
     
-    # 4) Code in Pyodide ausführen (komplett synchron)
+    # 4) Packages mit micropip installieren (run_js wrapper für async)
+    if reqs:
+        selenium_standalone.run_js(f"""
+            return await pyodide.runPythonAsync(`
+                import micropip
+                await micropip.install({reqs!r})
+            `);
+        """)
+    
+    # 5) Code in Pyodide ausführen (synchron)
     result_ttl = selenium_standalone.run(f"""
         # sum_mm.py Code laden
         exec({sum_mm_code!r})
@@ -41,7 +49,7 @@ def test_sum_mm_node(selenium_standalone):
         result
     """)
     
-    # 5) Ergebnis mit rdflib in Python prüfen
+    # 6) Ergebnis mit rdflib in Python prüfen
     from rdflib import Graph, Namespace
     from rdflib.namespace import RDF
 
