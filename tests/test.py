@@ -4,6 +4,7 @@ import pathlib
 import pytest
 
 
+@pytest.mark.driver_timeout(300)  # Timeout auf 5 Minuten erhöhen
 def test_sum_mm_node(selenium_standalone):
     """Test sum_mm.py with Pyodide in Node.js runtime."""
     
@@ -29,17 +30,25 @@ def test_sum_mm_node(selenium_standalone):
                 continue
             reqs.append(line)
     
-    # 4) micropip laden und dann Packages installieren
-    if reqs:
-        selenium_standalone.run_js(f"""
-            await pyodide.loadPackage("micropip");
-            return await pyodide.runPythonAsync(`
-                import micropip
-                await micropip.install({reqs!r})
-            `);
-        """)
+    # 4) micropip laden
+    print("Loading micropip...")
+    selenium_standalone.run_js("""
+        await pyodide.loadPackage("micropip");
+    """)
     
-    # 5) Code in Pyodide ausführen (synchron)
+    # 5) Packages einzeln installieren (mit Fortschrittsanzeige)
+    if reqs:
+        for req in reqs:
+            print(f"Installing {req}...")
+            selenium_standalone.run_js(f"""
+                return await pyodide.runPythonAsync(`
+                    import micropip
+                    await micropip.install({req!r})
+                `);
+            """)
+    
+    # 6) Code in Pyodide ausführen (synchron)
+    print("Running sum_mm.py...")
     result_ttl = selenium_standalone.run(f"""
         # sum_mm.py Code laden
         exec({sum_mm_code!r})
@@ -50,7 +59,7 @@ def test_sum_mm_node(selenium_standalone):
         result
     """)
     
-    # 6) Ergebnis mit rdflib in Python prüfen
+    # 7) Ergebnis mit rdflib in Python prüfen
     from rdflib import Graph, Namespace
     from rdflib.namespace import RDF
 
