@@ -46,9 +46,5 @@ jobs:
       - name: Run tests
 
         run: |
-          pytest tests/test.py \
-            --runtime node \
-            --dist-dir ./pyodide-dist \
-            --script-timeout 300 \
-            -v -s
+          pytest tests/test.py --runtime node --dist-dir ./pyodide-dist -v -s
         timeout-minutes: 10
