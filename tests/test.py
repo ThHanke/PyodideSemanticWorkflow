@@ -38,14 +38,21 @@ def test_sum_mm_node(selenium_standalone, web_server_main):
         const inputTtl = `{input_ttl_escaped}`;
         
         const result = await pyodide.runPythonAsync(`
+from rdflib import Graph, Namespace, URIRef, BNode, Literal
+from rdflib.namespace import RDF, XSD
+import uuid
 
-# Definiere die Funktion
+# Define the function
+${{sumMmCode}}
 
-${{sumMmCode.split('# Pyodide / Node contract')[0]}}
+# Extract activity IRI from input graph
+PROV = Namespace("http://www.w3.org/ns/prov#")
+temp_g = Graph()
+temp_g.parse(data='''${{inputTtl}}''', format="turtle")
+activity_iri = str(next(temp_g.subjects(RDF.type, PROV.Activity), "urn:activity:default"))
 
-# Führe aus
-
-result = run('''${{inputTtl}}''')
+# Execute with both required parameters
+result = run('''${{inputTtl}}''', activity_iri)
 result
         `);
         
