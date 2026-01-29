@@ -54,6 +54,37 @@ def create_deterministic_iri(prefix: str, execution_hash: str) -> URIRef:
     return URIRef(f"#{prefix}_{execution_hash}")
 
 
+def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
+    """
+    Remove all triples related to a previous result entity from the graph.
+    
+    This prevents base URI pollution when re-running an activity by ensuring
+    the old result entity is completely removed before creating a new one.
+    
+    Args:
+        g: The RDF graph to clean
+        result_iri: The IRI of the result entity to remove
+        
+    Returns:
+        Number of triples removed
+    """
+    triples_to_remove = []
+    
+    # Find all triples where result_iri is the subject
+    for s, p, o in g.triples((result_iri, None, None)):
+        triples_to_remove.append((s, p, o))
+    
+    # Find all triples where result_iri is the object
+    for s, p, o in g.triples((None, None, result_iri)):
+        triples_to_remove.append((s, p, o))
+    
+    # Remove all found triples
+    for triple in triples_to_remove:
+        g.remove(triple)
+    
+    return len(triples_to_remove)
+
+
 def _add_error(g: Graph, activity, message: str, code: str = None, execution_hash: str = "unknown") -> None:
     """Add an error as a Web Annotation with deterministic IRI."""
     # Use shared execution hash - prefix makes it unique
@@ -181,6 +212,13 @@ def run(input_turtle: str, activity_iri: str) -> str:
     # The prefix "sumResult" makes it unique, hash groups it with other results from same execution
     result_qv = create_deterministic_iri("sumResult", execution_hash)
     
+    # CRITICAL: Clean up any previous result with this IRI from the graph
+    # This prevents base URI pollution when re-running the activity
+    removed_count = cleanup_previous_result(g, result_qv)
+    if removed_count > 0:
+        print(f"[INFO] Removed {removed_count} triples from previous result {result_qv}")
+    
+    # Now add the fresh result
     g.add((result_qv, RDF.type, QUDT.QuantityValue))
     g.add((result_qv, QUDT.numericValue, Literal(total, datatype=XSD.decimal)))
     g.add((result_qv, QUDT.unit, unit_iri))
