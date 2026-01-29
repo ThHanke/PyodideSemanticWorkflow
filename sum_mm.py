@@ -12,27 +12,8 @@ OA   = Namespace("http://www.w3.org/ns/oa#")
 EX   = Namespace("https://github.com/ThHanke/PyodideSemanticWorkflow/")
 BFO  = Namespace("https://example.org/bfo/")
 
-# ---------------------------------------------------------------------------
-# PROV context injected by pyodide-run.js
-# ---------------------------------------------------------------------------
 
-try:
-    ACTIVITY_IRI = URIRef(__PROV_ACTIVITY_ID__)
-except Exception:
-    ACTIVITY_IRI = None
-
-try:
-    AGENT_IRI = URIRef(__PROV_AGENT_ID__)
-except Exception:
-    AGENT_IRI = None
-
-try:
-    PLAN_IRI = URIRef(__PROV_PLAN__)
-except Exception:
-    PLAN_IRI = None
-
-
-def _add_error(g: Graph, activity, message: str, code: str | None = None) -> None:
+def _add_error(g: Graph, activity, message: str, code: str = None) -> None:
     """Add an error as a Web Annotation."""
     ann_iri = URIRef(f"#errorAnn_{uuid.uuid4().hex}")
     body = BNode()
@@ -56,25 +37,22 @@ def _add_error(g: Graph, activity, message: str, code: str | None = None) -> Non
         g.add((body, EX.errorCode, Literal(code, datatype=XSD.string)))
 
 
-def _ensure_prov_context(g: Graph, activity):
-    """Ensure Activity, Agent, and Plan exist and are linked."""
-    if activity is not None:
-        g.add((activity, RDF.type, PROV.Activity))
-
-        if AGENT_IRI is not None:
-            g.add((AGENT_IRI, RDF.type, PROV.Agent))
-            g.add((activity, PROV.wasAssociatedWith, AGENT_IRI))
-
-        if PLAN_IRI is not None:
-            g.add((PLAN_IRI, RDF.type, PROV.Plan))
-            g.add((activity, PROV.used, PLAN_IRI))
-
-
-def run(graph_ttl: str) -> str:
+def run(input_turtle: str, activity_iri: str) -> str:
+    """
+    Main entry point called by Pyodide runtime.
+    
+    Args:
+        input_turtle: Input graph in Turtle format
+        activity_iri: IRI of the prov:Activity being executed
+        
+    Returns:
+        Output graph in Turtle format
+    """
     g = Graph()
 
+    # Parse input graph
     try:
-        g.parse(data=graph_ttl, format="turtle")
+        g.parse(data=input_turtle, format="turtle")
     except Exception as e:
         g = Graph()
         g.bind("prov", PROV)
@@ -86,8 +64,7 @@ def run(graph_ttl: str) -> str:
             message=f"Failed to parse input graph: {e}",
             code="PARSE_ERROR"
         )
-        result = g.serialize(format="turtle")
-        return result
+        return g.serialize(format="turtle")
 
     # Bind prefixes
     g.bind("prov", PROV)
@@ -97,26 +74,13 @@ def run(graph_ttl: str) -> str:
     g.bind("oa", OA)
     g.bind("ex", EX)
 
-    # 1) Determine the activity
-    activity = next(g.subjects(RDF.type, PROV.Activity), None)
+    # Use the provided activity_iri
+    activity = URIRef(activity_iri)
+    
+    # Ensure activity exists in graph
+    g.add((activity, RDF.type, PROV.Activity))
 
-    if activity is None and ACTIVITY_IRI is not None:
-        activity = ACTIVITY_IRI
-        g.add((activity, RDF.type, PROV.Activity))
-
-    if activity is None:
-        _add_error(
-            g,
-            activity=None,
-            message="No prov:Activity found or provided",
-            code="NO_ACTIVITY"
-        )
-        result = g.serialize(format="turtle")
-        return result
-
-    _ensure_prov_context(g, activity)
-
-    # 2) Find inputs
+    # Find inputs using bfo:is_input_of
     inputs = [
         qv for qv in g.subjects(BFO.is_input_of, activity)
         if (qv, RDF.type, QUDT.QuantityValue) in g
@@ -126,13 +90,12 @@ def run(graph_ttl: str) -> str:
         _add_error(
             g,
             activity=activity,
-            message="Expected at least two qudt:QuantityValue inputs linked via bfo:is_input_of",
+            message=f"Expected at least two qudt:QuantityValue inputs linked via bfo:is_input_of. Found {len(inputs)}",
             code="INPUT_TOO_FEW"
         )
-        result = g.serialize(format="turtle")
-        return result
+        return g.serialize(format="turtle")
 
-    # 3) Read numeric values
+    # Read numeric values
     values = []
     units = set()
 
@@ -158,16 +121,16 @@ def run(graph_ttl: str) -> str:
             g,
             activity,
             "Inputs have different units: " + ", ".join(str(u) for u in units),
-            "UNIT_MISMATCH"
+            code="UNIT_MISMATCH"
         )
         return g.serialize(format="turtle")
 
     unit_iri = next(iter(units)) if units else UNIT.MilliM
 
-    # 4) Compute
+    # Compute sum
     total = sum(values)
 
-    # 5) Create result
+    # Create result
     result_qv = URIRef(f"#sumResult_{uuid.uuid4().hex}")
     g.add((result_qv, RDF.type, QUDT.QuantityValue))
     g.add((result_qv, QUDT.numericValue, Literal(total, datatype=XSD.decimal)))
@@ -177,19 +140,6 @@ def run(graph_ttl: str) -> str:
     for qv in inputs:
         g.add((result_qv, PROV.wasDerivedFrom, qv))
 
+    # Serialize and return
     result = g.serialize(format="turtle")
     return result
-
-
-# ---------------------------------------------------------------------------
-# Pyodide / Node contract
-# ---------------------------------------------------------------------------
-
-# This is what pyodide-run.js looks for
-result_ttl = run(__INPUT_GRAPH_TTL__) if "__INPUT_GRAPH_TTL__" in globals() else None
-
-
-if __name__ == "__main__":
-    import sys
-    input_ttl = sys.stdin.read()
-    print(run(input_ttl))
