@@ -116,10 +116,14 @@ spw:SumRequirements a prov:Entity ;
     prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
     spw:packageManager "pip" .
 
-# Link implementation to step
-spw:SumStep 
-    prov:used spw:SumCode, spw:SumRequirements ;
-    prov:wasAssociatedWith spw:PyodideEngine .
+# Link implementation to the PLAN (not the step - steps are abstract!)
+# The Plan references what resources are needed for execution
+spw:SumTemplate
+    # PROV-O: Plans can reference entities they need
+    prov:wasDerivedFrom spw:SumCode, spw:SumRequirements .
+
+# Note: The Step is abstract and doesn't "use" concrete entities.
+# That happens at execution time in the Activity.
 
 
 ################################################################################
@@ -158,10 +162,12 @@ spw:inputLength2 a qudt:QuantityValue, prov:Entity ;
 
 spw:SumRun_1 a prov:Activity ;
     rdfs:label "Execution: sum 2.0mm + 3.0mm"@en ;
-    # CRITICAL: Link to template step using P-Plan
+    # CRITICAL: PROV-O link to the Plan that was executed
+    prov:hadPlan spw:SumTemplate ;
+    # CRITICAL: P-Plan link to the specific step that was executed
     p-plan:correspondsToStep spw:SumStep ;
-    # Standard PROV-O properties
-    prov:used spw:inputLength1, spw:inputLength2 ;
+    # Standard PROV-O properties for execution
+    prov:used spw:inputLength1, spw:inputLength2, spw:SumCode, spw:SumRequirements ;
     prov:wasAssociatedWith spw:PyodideEngine ;
     prov:startedAtTime "2026-01-30T10:45:00Z"^^xsd:dateTime ;
     prov:endedAtTime "2026-01-30T10:45:01Z"^^xsd:dateTime .
