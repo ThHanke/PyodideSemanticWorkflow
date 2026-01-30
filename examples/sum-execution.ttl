@@ -1,5 +1,5 @@
-@base <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
-@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
+@base <https://thhanke.github.io/PyodideSemanticWorkflow/> .
+@prefix spw: <https://thhanke.github.io/PyodideSemanticWorkflow#> .
 @prefix p-plan: <http://purl.org/net/p-plan#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix qudt: <http://qudt.org/schema/qudt/> .

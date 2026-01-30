@@ -5,7 +5,7 @@
 @prefix qudt: <http://qudt.org/schema/qudt/> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix schema: <https://schema.org/> .
-@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
+@prefix spw: <https://thhanke.github.io/PyodideSemanticWorkflow#> .
 @prefix unit: <http://qudt.org/vocab/unit/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
@@ -16,7 +16,7 @@
         spw:inputLength2 ;
     prov:wasGeneratedBy spw:SumRun_1 .
 
-<https://github.com/ThHanke/PyodideSemanticWorkflow/#sumResult_c22ad6de4d807f4b> a qudt:QuantityValue,
+<https://thhanke.github.io/PyodideSemanticWorkflow/#sumResult_c22ad6de4d807f4b> a qudt:QuantityValue,
         prov:Entity ;
     rdfs:label "Result: 5.0 mm" ;
     p-plan:correspondsToVariable spw:SumOutput ;
