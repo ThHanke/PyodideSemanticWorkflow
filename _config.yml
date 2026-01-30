@@ -1,0 +1,38 @@
+# GitHub Pages Configuration for Pyodide Semantic Workflow
+
+# Theme
+theme: jekyll-theme-minimal
+
+# Site settings
+title: Pyodide Semantic Workflow
+description: Semantic workflow definitions for browser-based Python data processing
+author: Thomas Hanke
+github_username: ThHanke
+
+# Build settings
+markdown: kramdown
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Include these file types in the build
+include:
+  - "_*"
+  - ".htaccess"
+  - "*.ttl"
+  - "*.rdf"
+  - "*.jsonld"
+
+# Collections for resources
+collections:
+  resources:
+    output: true
+    permalink: /resources/:name.html
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "resources"
+    values:
+      layout: "resource"

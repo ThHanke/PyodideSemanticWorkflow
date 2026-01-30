@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>spw:SumTemplate - Pyodide Semantic Workflow</title>
+    <link rel="alternate" type="text/turtle" href="../../workflows/catalog.ttl#SumTemplate">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        header {
+            border-bottom: 3px solid #0366d6;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #0366d6;
+            font-family: 'Courier New', monospace;
+        }
+        .uri {
+            background: #f6f8fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+        .metadata {
+            background: #f6f8fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .metadata dt {
+            font-weight: bold;
+            color: #0366d6;
+            margin-top: 10px;
+        }
+        .metadata dd {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+        .formats {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+        .formats a {
+            color: #0366d6;
+            text-decoration: none;
+            margin-right: 15px;
+        }
+        .formats a:hover {
+            text-decoration: underline;
+        }
+        code {
+            background: #f6f8fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        pre {
+            background: #f6f8fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .back {
+            margin-bottom: 20px;
+        }
+        .back a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        .back a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="back">
+        <a href="../index.html">← Back to Ontology Index</a>
+    </div>
+
+    <header>
+        <h1>spw:SumTemplate</h1>
+        <p class="subtitle">Sum QUDT Quantities Workflow Template</p>
+    </header>
+
+    <div class="uri">
+        <strong>URI:</strong> https://thhanke.github.io/PyodideSemanticWorkflow#SumTemplate
+    </div>
+
+    <div class="formats">
+        <strong>Get this resource in:</strong>
+        <a href="../../workflows/catalog.ttl" download>Turtle</a>
+        <a href="?format=ttl">RDF/Turtle</a>
+        <a href="../../workflows/catalog.ttl?raw=true">Raw</a>
+    </div>
+
+    <section>
+        <h2>Description</h2>
+        <p>Sums two or more QUDT QuantityValue instances with compatible units. Returns a new QuantityValue with the sum and the shared unit.</p>
+    </section>
+
+    <section>
+        <h2>Metadata</h2>
+        <dl class="metadata">
+            <dt>Type</dt>
+            <dd>
+                <code>p-plan:Plan</code>, <code>prov:Plan</code>
+            </dd>
+
+            <dt>Label</dt>
+            <dd>Sum QUDT Quantities @en</dd>
+
+            <dt>Category</dt>
+            <dd>Mathematics</dd>
+
+            <dt>Keywords</dt>
+            <dd>sum, addition, qudt, units, quantities</dd>
+
+            <dt>Version</dt>
+            <dd>1.0.0</dd>
+
+            <dt>License</dt>
+            <dd><a href="https://spdx.org/licenses/MIT">MIT</a></dd>
+
+            <dt>Created</dt>
+            <dd>2026-01-30</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h2>Input Variables</h2>
+        <dl class="metadata">
+            <dt><a href="SumInput1.html">spw:SumInput1</a></dt>
+            <dd>First QUDT QuantityValue to sum (required)</dd>
+
+            <dt><a href="SumInput2.html">spw:SumInput2</a></dt>
+            <dd>Second QUDT QuantityValue to sum (required)</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h2>Output Variables</h2>
+        <dl class="metadata">
+            <dt><a href="SumOutput.html">spw:SumOutput</a></dt>
+            <dd>The resulting sum as a QUDT QuantityValue</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h2>Implementation</h2>
+        <dl class="metadata">
+            <dt>Code</dt>
+            <dd><a href="https://github.com/ThHanke/PyodideSemanticWorkflow/blob/main/workflows/sum.py">sum.py</a></dd>
+
+            <dt>Runtime</dt>
+            <dd>Pyodide (Python in WebAssembly)</dd>
+
+            <dt>Dependencies</dt>
+            <dd>rdflib==7.0.0</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h2>Example Usage</h2>
+        <p>See the <a href="../../examples/sum-execution.ttl">example execution</a> for a complete provenance trace.</p>
+    </section>
+
+    <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #e1e4e8; text-align: center; color: #586069;">
+        <p>
+            Part of <a href="https://github.com/ThHanke/PyodideSemanticWorkflow">Pyodide Semantic Workflow</a> | 
+            <a href="../index.html">Ontology Index</a>
+        </p>
+    </footer>
+</body>
+</html>

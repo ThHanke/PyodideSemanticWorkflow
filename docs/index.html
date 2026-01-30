@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pyodide Semantic Workflow - Ontology</title>
+    <script>
+        // Content negotiation based on Accept header (client-side approximation)
+        // Redirects to appropriate format based on URL fragment or query params
+        
+        window.addEventListener('DOMContentLoaded', function() {
+            const hash = window.location.hash.substring(1); // Remove #
+            const params = new URLSearchParams(window.location.search);
+            const format = params.get('format');
+            
+            // If requesting specific format, redirect
+            if (format === 'ttl' || format === 'turtle') {
+                window.location.href = '../ontology/spw.ttl';
+                return;
+            }
+            
+            // If accessing a specific resource by fragment, redirect to resource page
+            if (hash) {
+                // Check if it's a known resource
+                const resources = [
+                    'SumTemplate', 'MultiplyTemplate', 'ConvertTemplate',
+                    'SumStep', 'MultiplyStep', 'ConvertStep',
+                    'SumInput1', 'SumInput2', 'SumOutput',
+                    'WorkflowCategory', 'expectedType', 'required', 'packageManager',
+                    'nodeType', 'defaultWidth', 'defaultHeight', 'resizable', 'draggable',
+                    'inputHandlePosition', 'outputHandlePosition', 'handleStyle', 'icon'
+                ];
+                
+                if (resources.includes(hash)) {
+                    window.location.href = 'resources/' + hash + '.html';
+                    return;
+                }
+            }
+            
+            // Otherwise, show the main documentation page
+        });
+    </script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        header {
+            border-bottom: 3px solid #0366d6;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #0366d6;
+            margin-bottom: 10px;
+        }
+        .namespace {
+            background: #f6f8fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid #0366d6;
+        }
+        .formats {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+        .formats h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .formats ul {
+            margin-bottom: 0;
+        }
+        .formats a {
+            color: #0366d6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .formats a:hover {
+            text-decoration: underline;
+        }
+        .section {
+            margin: 30px 0;
+        }
+        .section h2 {
+            color: #0366d6;
+            border-bottom: 2px solid #e1e4e8;
+            padding-bottom: 10px;
+        }
+        .resource-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .resource-card {
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 15px;
+            background: #f6f8fa;
+            transition: box-shadow 0.2s;
+        }
+        .resource-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .resource-card h3 {
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        .resource-card a {
+            color: #0366d6;
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+        }
+        .resource-card a:hover {
+            text-decoration: underline;
+        }
+        .resource-card p {
+            margin: 10px 0 0 0;
+            font-size: 0.9em;
+            color: #586069;
+        }
+        code {
+            background: #f6f8fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+            text-align: center;
+            color: #586069;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🔗 Pyodide Semantic Workflow Ontology</h1>
+        <p>Semantic workflow definitions for browser-based Python data processing using Pyodide</p>
+    </header>
+
+    <div class="namespace">
+        <strong>Namespace URI:</strong><br>
+        <code>https://thhanke.github.io/PyodideSemanticWorkflow#</code>
+    </div>
+
+    <div class="formats">
+        <h3>📥 Download Ontology</h3>
+        <ul>
+            <li><a href="../ontology/spw.ttl" download>Turtle (.ttl)</a> - Main ontology definition</li>
+            <li><a href="../workflows/catalog.ttl" download>Workflow Catalog (.ttl)</a> - Template definitions</li>
+            <li><a href="../workflows/catalog-ui.ttl" download>UI Extensions (.ttl)</a> - React Flow metadata</li>
+            <li><a href="../examples/sum-execution.ttl" download>Example Execution (.ttl)</a> - Sample provenance</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>📚 Workflow Templates</h2>
+        <p>Browse the available workflow templates defined in this catalog:</p>
+        <div class="resource-list">
+            <div class="resource-card">
+                <h3><a href="resources/SumTemplate.html">spw:SumTemplate</a></h3>
+                <p>Sums two or more QUDT QuantityValue instances with compatible units</p>
+            </div>
+            <div class="resource-card">
+                <h3><a href="resources/MultiplyTemplate.html">spw:MultiplyTemplate</a></h3>
+                <p>Multiplies two QUDT QuantityValue instances with unit algebra</p>
+            </div>
+            <div class="resource-card">
+                <h3><a href="resources/ConvertTemplate.html">spw:ConvertTemplate</a></h3>
+                <p>Converts a QUDT QuantityValue to a different compatible unit</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🏗️ Ontology Classes</h2>
+        <div class="resource-list">
+            <div class="resource-card">
+                <h3><a href="resources/WorkflowCategory.html">spw:WorkflowCategory</a></h3>
+                <p>A category for grouping related workflow templates</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔗 Object Properties</h2>
+        <div class="resource-list">
+            <div class="resource-card">
+                <h3><a href="resources/expectedType.html">spw:expectedType</a></h3>
+                <p>The expected RDF type for a variable's value</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📊 Datatype Properties</h2>
+        <div class="resource-list">
+            <div class="resource-card">
+                <h3><a href="resources/required.html">spw:required</a></h3>
+                <p>Whether this variable is required (boolean)</p>
+            </div>
+            <div class="resource-card">
+                <h3><a href="resources/packageManager.html">spw:packageManager</a></h3>
+                <p>The package manager to use for dependencies</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🎨 UI Properties</h2>
+        <p>Properties for React Flow integration:</p>
+        <div class="resource-list">
+            <div class="resource-card">
+                <h3><a href="resources/nodeType.html">spw:nodeType</a></h3>
+                <p>React Flow node type for custom rendering</p>
+            </div>
+            <div class="resource-card">
+                <h3><a href="resources/defaultWidth.html">spw:defaultWidth</a></h3>
+                <p>Default width of the node in pixels</p>
+            </div>
+            <div class="resource-card">
+                <h3><a href="resources/defaultHeight.html">spw:defaultHeight</a></h3>
+                <p>Default height of the node in pixels</p>
+            </div>
+            <div class="resource-card">
+                <h3><a href="resources/resizable.html">spw:resizable</a></h3>
+                <p>Whether the node can be resized</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📖 Documentation</h2>
+        <ul>
+            <li><a href="../README.md">Main README</a></li>
+            <li><a href="../docs/USE_CASE_1.md">Use Case 1: Semantic Definitions Only</a></li>
+            <li><a href="../docs/USE_CASE_2.md">Use Case 2: React Flow UI Integration</a></li>
+            <li><a href="../ontology/README.md">Ontology Documentation</a></li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🔍 SPARQL Endpoint</h2>
+        <p>You can query this ontology using any SPARQL engine. Load the ontology files directly:</p>
+        <code>https://thhanke.github.io/PyodideSemanticWorkflow/ontology/spw.ttl</code>
+    </div>
+
+    <footer>
+        <p>
+            <strong>License:</strong> MIT | 
+            <a href="https://github.com/ThHanke/PyodideSemanticWorkflow">GitHub Repository</a> | 
+            Version 1.0.0
+        </p>
+    </footer>
+</body>
+</html>

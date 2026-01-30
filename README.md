@@ -312,6 +312,22 @@ Built with:
 - **QUDT** quantities, units, dimensions, and types ontology
 - **Pyodide** project for WebAssembly Python
 
+## URI Resolution via GitHub Pages
+
+All ontology terms and workflow templates have resolvable URIs:
+
+- **Ontology Landing Page**: `https://thhanke.github.io/PyodideSemanticWorkflow/`
+- **Main Ontology**: `https://thhanke.github.io/PyodideSemanticWorkflow/ontology/spw.ttl`
+- **Workflow Catalog**: `https://thhanke.github.io/PyodideSemanticWorkflow/workflows/catalog.ttl`
+
+Individual resources can be accessed via fragment identifiers:
+```
+https://thhanke.github.io/PyodideSemanticWorkflow#SumTemplate
+https://thhanke.github.io/PyodideSemanticWorkflow#MultiplyTemplate
+```
+
+See [GitHub Pages Setup Guide](docs/GITHUB_PAGES_SETUP.md) for configuration instructions.
+
 ## Contact
 
 - GitHub: [@ThHanke](https://github.com/ThHanke)
