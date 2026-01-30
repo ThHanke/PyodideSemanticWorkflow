@@ -1,0 +1,144 @@
+@base <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
+@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix schema: <https://schema.org/> .
+@prefix css: <https://www.w3.org/TR/CSS/#> .
+
+################################################################################
+#
+# PYODIDE SEMANTIC WORKFLOW CATALOG - UI METADATA
+#
+# This file contains OPTIONAL UI metadata for React Flow integration.
+# It extends the semantic definitions in catalog.ttl with visual styling
+# and interaction properties.
+#
+# Usage: Import AFTER catalog.ttl if you want React Flow UI support
+# Use Case 2 only - Use Case 1 users can ignore this file
+#
+# Last Updated: 2026-01-30
+# License: MIT
+#
+################################################################################
+
+
+################################################################################
+# UI METADATA: Sum Template
+#
+# Visual styling and React Flow node configuration for the Sum workflow
+################################################################################
+
+spw:SumTemplate
+    # Icon (base64-encoded SVG or URL)
+    schema:image """data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxsaW5lIHgxPSIxMiIgeTE9IjUiIHgyPSIxMiIgeTI9IjE5Ij48L2xpbmU+PGxpbmUgeDE9IjUiIHkxPSIxMiIgeDI9IjE5IiB5Mj0iMTIiPjwvbGluZT48L3N2Zz4=""" ;
+    
+    # CSS Styling Properties
+    css:background-color "#e8f5e9" ;          # Light green background
+    css:border-color "#4CAF50" ;              # Green border
+    css:border-width "2px" ;
+    css:border-style "solid" ;
+    css:border-radius "8px" ;
+    css:color "#2e7d32" ;                     # Dark green text
+    css:padding "12px" ;
+    css:box-shadow "0 2px 4px rgba(0,0,0,0.1)" ;
+    
+    # React Flow Node Properties
+    spw:nodeType "semantic-workflow" ;         # Custom React Flow node type
+    spw:defaultWidth "200" ;                   # Default width in pixels
+    spw:defaultHeight "80" ;                   # Default height in pixels
+    spw:resizable false ;                      # Node cannot be resized
+    spw:draggable true ;                       # Node can be dragged
+    
+    # Handle Configuration
+    spw:inputHandlePosition "left" ;           # Input handles on left side
+    spw:outputHandlePosition "right" ;         # Output handles on right side
+    spw:handleStyle "smooth" .                 # Smooth connection lines
+
+
+################################################################################
+# UI METADATA: Multiply Template
+#
+# Visual styling and React Flow node configuration for the Multiply workflow
+################################################################################
+
+spw:MultiplyTemplate
+    # Icon (multiplication symbol)
+    schema:image """data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxsaW5lIHgxPSI1IiB5MT0iNSIgeDI9IjE5IiB5Mj0iMTkiPjwvbGluZT48bGluZSB4MT0iMTkiIHkxPSI1IiB4Mj0iNSIgeTI9IjE5Ij48L2xpbmU+PC9zdmc+""" ;
+    
+    # CSS Styling Properties
+    css:background-color "#e3f2fd" ;          # Light blue background
+    css:border-color "#2196F3" ;              # Blue border
+    css:border-width "2px" ;
+    css:border-style "solid" ;
+    css:border-radius "8px" ;
+    css:color "#1565c0" ;                     # Dark blue text
+    css:padding "12px" ;
+    css:box-shadow "0 2px 4px rgba(0,0,0,0.1)" ;
+    
+    # React Flow Node Properties
+    spw:nodeType "semantic-workflow" ;
+    spw:defaultWidth "200" ;
+    spw:defaultHeight "80" ;
+    spw:resizable false ;
+    spw:draggable true ;
+    
+    # Handle Configuration
+    spw:inputHandlePosition "left" ;
+    spw:outputHandlePosition "right" ;
+    spw:handleStyle "smooth" .
+
+
+################################################################################
+# UI METADATA: Convert Template
+#
+# Visual styling and React Flow node configuration for the Unit Conversion workflow
+################################################################################
+
+spw:ConvertTemplate
+    # Icon (arrows indicating conversion)
+    schema:image """data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjE3IDEgMjEgNSAxNyA5Ij48L3BvbHlsaW5lPjxwYXRoIGQ9Ik0zIDExVjlhNCA0IDAgMCAxIDQtNGgxNCI+PC9wYXRoPjxwb2x5bGluZSBwb2ludHM9IjcgMjMgMyAxOSA3IDE1Ij48L3BvbHlsaW5lPjxwYXRoIGQ9Ik0yMSAxM3YyYTQgNCAwIDAgMS00IDRIMyI+PC9wYXRoPjwvc3ZnPg==""" ;
+    
+    # CSS Styling Properties
+    css:background-color "#fff3e0" ;          # Light orange background
+    css:border-color "#FF9800" ;              # Orange border
+    css:border-width "2px" ;
+    css:border-style "solid" ;
+    css:border-radius "8px" ;
+    css:color "#e65100" ;                     # Dark orange text
+    css:padding "12px" ;
+    css:box-shadow "0 2px 4px rgba(0,0,0,0.1)" ;
+    
+    # React Flow Node Properties
+    spw:nodeType "semantic-workflow" ;
+    spw:defaultWidth "200" ;
+    spw:defaultHeight "80" ;
+    spw:resizable false ;
+    spw:draggable true ;
+    
+    # Handle Configuration
+    spw:inputHandlePosition "left" ;
+    spw:outputHandlePosition "right" ;
+    spw:handleStyle "smooth" .
+
+
+################################################################################
+# CATEGORY STYLING
+#
+# Default styling for workflow categories (can be overridden per template)
+################################################################################
+
+spw:MathematicsCategory a spw:WorkflowCategory ;
+    rdfs:label "Mathematics" ;
+    css:background-color "#e8f5e9" ;
+    css:border-color "#4CAF50" ;
+    spw:icon "calculate" .
+
+spw:UnitsCategory a spw:WorkflowCategory ;
+    rdfs:label "Units" ;
+    css:background-color "#fff3e0" ;
+    css:border-color "#FF9800" ;
+    spw:icon "swap_horiz" .
+
+
+################################################################################
+# End of UI Metadata
+################################################################################

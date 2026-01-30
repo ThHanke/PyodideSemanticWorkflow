@@ -1,39 +1,47 @@
 # tests/test.py
 
 import pathlib
+
 import pytest
 
 
 def test_sum_mm_node(selenium_standalone, web_server_main):
     """Test sum_mm.py with Pyodide in Node.js runtime."""
-    
+
     root = pathlib.Path(__file__).resolve().parents[1]
-    sum_mm_path = root / "sum_mm.py"
+    sum_mm_path = root / "workflows" / "sum.py"
     ttl_path = root / "sum_semantic_graph.ttl"
     result_path = root / "result.ttl"
-    
+
     assert sum_mm_path.exists(), f"sum_mm.py not found: {sum_mm_path}"
     assert ttl_path.exists(), f"Input TTL file not found: {ttl_path}"
-    
+
     print("Installing rdflib via micropip...")
-    selenium_standalone.run_js("""
+    selenium_standalone.run_js(
+        """
         await pyodide.loadPackage("micropip");
         await pyodide.runPythonAsync(`
             import micropip
             await micropip.install("rdflib==7.0.0")
         `);
-    """)
-    
+    """
+    )
+
     print("Loading sum_mm.py from filesystem...")
     sum_mm_code = sum_mm_path.read_text(encoding="utf-8")
     input_ttl = ttl_path.read_text(encoding="utf-8")
-    
+
     # Escaping für JavaScript String
-    sum_mm_escaped = sum_mm_code.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${')
-    input_ttl_escaped = input_ttl.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${')
-    
+    sum_mm_escaped = (
+        sum_mm_code.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    )
+    input_ttl_escaped = (
+        input_ttl.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    )
+
     print("Running sum_mm.py...")
-    result_ttl = selenium_standalone.run_js(f"""
+    result_ttl = selenium_standalone.run_js(
+        f"""
         const sumMmCode = `{sum_mm_escaped}`;
         const inputTtl = `{input_ttl_escaped}`;
         
@@ -57,12 +65,13 @@ result
         `);
         
         return result;
-    """)
-    
+    """
+    )
+
     # Speichere das Ergebnis
     print(f"Saving result to {result_path}...")
     result_path.write_text(result_ttl, encoding="utf-8")
-    
+
     # Validiere Ergebnis
     print("Validating results...")
     from rdflib import Graph, Namespace

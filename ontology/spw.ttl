@@ -1,0 +1,143 @@
+@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+################################################################################
+#
+# SPW ONTOLOGY: Semantic Python Workflow
+#
+# A minimal ontology extending P-Plan and PROV-O with properties specific
+# to Python-based workflows executed in Pyodide.
+#
+# Version: 1.0.0
+# Created: 2026-01-30
+# License: MIT
+#
+################################################################################
+
+spw: a owl:Ontology ;
+    rdfs:label "Semantic Python Workflow Ontology"@en ;
+    rdfs:comment "Extends P-Plan and PROV-O for browser-based Python workflows"@en ;
+    dcterms:created "2026-01-30"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    owl:versionInfo "1.0.0" ;
+    owl:imports <http://purl.org/net/p-plan#> ,
+                <http://www.w3.org/ns/prov#> .
+
+
+################################################################################
+# CLASSES
+################################################################################
+
+spw:WorkflowCategory a owl:Class ;
+    rdfs:label "Workflow Category"@en ;
+    rdfs:comment "A category for grouping related workflow templates"@en ;
+    rdfs:isDefinedBy spw: .
+
+
+################################################################################
+# OBJECT PROPERTIES - Semantic
+################################################################################
+
+spw:expectedType a owl:ObjectProperty ;
+    rdfs:label "expected type"@en ;
+    rdfs:comment "The expected RDF type for a variable's value (e.g., qudt:QuantityValue)"@en ;
+    rdfs:domain p-plan:Variable ;
+    rdfs:range rdfs:Class ;
+    rdfs:isDefinedBy spw: .
+
+
+################################################################################
+# DATATYPE PROPERTIES - Semantic
+################################################################################
+
+spw:required a owl:DatatypeProperty ;
+    rdfs:label "required"@en ;
+    rdfs:comment "Whether this variable is required (true) or optional (false)"@en ;
+    rdfs:domain p-plan:Variable ;
+    rdfs:range xsd:boolean ;
+    rdfs:isDefinedBy spw: .
+
+spw:packageManager a owl:DatatypeProperty ;
+    rdfs:label "package manager"@en ;
+    rdfs:comment "The package manager to use for installing dependencies (e.g., 'pip', 'micropip')"@en ;
+    rdfs:domain prov:Entity ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+
+################################################################################
+# DATATYPE PROPERTIES - React Flow UI
+################################################################################
+
+spw:nodeType a owl:DatatypeProperty ;
+    rdfs:label "React Flow node type"@en ;
+    rdfs:comment "Maps to React Flow's nodeType property for custom rendering"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+spw:defaultWidth a owl:DatatypeProperty ;
+    rdfs:label "default width"@en ;
+    rdfs:comment "Default width of the node in pixels"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+spw:defaultHeight a owl:DatatypeProperty ;
+    rdfs:label "default height"@en ;
+    rdfs:comment "Default height of the node in pixels"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+spw:resizable a owl:DatatypeProperty ;
+    rdfs:label "resizable"@en ;
+    rdfs:comment "Whether the node can be resized by the user"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:boolean ;
+    rdfs:isDefinedBy spw: .
+
+spw:draggable a owl:DatatypeProperty ;
+    rdfs:label "draggable"@en ;
+    rdfs:comment "Whether the node can be dragged on the canvas"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:boolean ;
+    rdfs:isDefinedBy spw: .
+
+spw:inputHandlePosition a owl:DatatypeProperty ;
+    rdfs:label "input handle position"@en ;
+    rdfs:comment "Position of input connection handles (left, right, top, bottom)"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+spw:outputHandlePosition a owl:DatatypeProperty ;
+    rdfs:label "output handle position"@en ;
+    rdfs:comment "Position of output connection handles (left, right, top, bottom)"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+spw:handleStyle a owl:DatatypeProperty ;
+    rdfs:label "handle style"@en ;
+    rdfs:comment "Style of connection lines (smooth, step, straight)"@en ;
+    rdfs:domain p-plan:Plan ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+spw:icon a owl:DatatypeProperty ;
+    rdfs:label "icon"@en ;
+    rdfs:comment "Icon identifier for the category (e.g., Material Icons name)"@en ;
+    rdfs:domain spw:WorkflowCategory ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy spw: .
+
+
+################################################################################
+# End of SPW Ontology
+################################################################################

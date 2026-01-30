@@ -1,0 +1,238 @@
+@base <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
+@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <https://schema.org/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix bfo: <https://example.org/bfo/> .
+
+################################################################################
+#
+# PYODIDE SEMANTIC WORKFLOW CATALOG
+#
+# This file contains semantic workflow template definitions using P-Plan and
+# PROV-O ontologies. These templates are framework-agnostic and can be used
+# in any workflow system.
+#
+# Use Case 1: Import this file alone for semantic workflow definitions
+# Use Case 2: Import this + catalog-ui.ttl for React Flow UI integration
+#
+# Last Updated: 2026-01-30
+# License: MIT
+#
+################################################################################
+
+
+################################################################################
+# SOFTWARE AGENT: Pyodide Runtime
+#
+# The execution engine for all workflows in this catalog.
+################################################################################
+
+spw:PyodideEngine a prov:SoftwareAgent ;
+    rdfs:label "Pyodide JavaScript/WASM Python runtime"@en ;
+    rdfs:comment "WebAssembly-compiled Python runtime for browser execution"@en ;
+    prov:atLocation <https://www.npmjs.com/package/pyodide> ;
+    schema:softwareVersion "0.25.0" ;
+    schema:programmingLanguage "Python", "JavaScript" .
+
+
+################################################################################
+# WORKFLOW TEMPLATE 1: Sum QUDT Quantities
+#
+# Sums two or more QUDT QuantityValue instances with compatible units.
+# Returns a new QuantityValue with the sum and the shared unit.
+#
+# Inputs: 2+ QuantityValues with compatible units
+# Output: 1 QuantityValue (sum)
+################################################################################
+
+spw:SumTemplate a p-plan:Plan, prov:Plan ;
+    rdfs:label "Sum QUDT Quantities"@en ;
+    rdfs:comment "Sums two or more QUDT QuantityValue instances with compatible units"@en ;
+    schema:category "Mathematics" ;
+    schema:keywords "sum", "addition", "qudt", "units", "quantities" ;
+    dcterms:created "2026-01-30"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    schema:version "1.0.0" .
+
+# The step/process within this plan
+spw:SumStep a p-plan:Step ;
+    p-plan:isStepOfPlan spw:SumTemplate ;
+    rdfs:label "Sum operation"@en ;
+    rdfs:comment "Performs the summation of input quantity values"@en .
+
+# Input Variable 1
+spw:SumInput1 a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    p-plan:isInputVarOf spw:SumStep ;
+    rdfs:label "Input Quantity 1"@en ;
+    rdfs:comment "First QUDT QuantityValue to sum"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
+
+# Input Variable 2
+spw:SumInput2 a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    p-plan:isInputVarOf spw:SumStep ;
+    rdfs:label "Input Quantity 2"@en ;
+    rdfs:comment "Second QUDT QuantityValue to sum"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
+
+# Output Variable
+spw:SumOutput a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    p-plan:isOutputVarOf spw:SumStep ;
+    rdfs:label "Sum Result"@en ;
+    rdfs:comment "The resulting sum as a QUDT QuantityValue"@en ;
+    spw:expectedType qudt:QuantityValue .
+
+# Implementation code
+spw:SumCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
+    dcterms:license <https://spdx.org/licenses/MIT> .
+
+# Dependencies
+spw:SumRequirements a prov:Entity ;
+    rdfs:label "Python requirements for sum workflow"@en ;
+    rdfs:comment "rdflib==7.0.0 required for RDF processing"@en ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
+    spw:packageManager "pip" .
+
+# Link implementation to step
+spw:SumStep 
+    prov:used spw:SumCode, spw:SumRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+
+################################################################################
+# WORKFLOW TEMPLATE 2: Multiply QUDT Quantities
+#
+# Multiplies two QUDT QuantityValue instances.
+# Note: Unit multiplication follows QUDT unit algebra (e.g., m * m = m²)
+#
+# Inputs: 2 QuantityValues
+# Output: 1 QuantityValue (product with derived unit)
+################################################################################
+
+spw:MultiplyTemplate a p-plan:Plan, prov:Plan ;
+    rdfs:label "Multiply QUDT Quantities"@en ;
+    rdfs:comment "Multiplies two QUDT QuantityValue instances with unit algebra"@en ;
+    schema:category "Mathematics" ;
+    schema:keywords "multiply", "multiplication", "qudt", "units" ;
+    dcterms:created "2026-01-30"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    schema:version "1.0.0" .
+
+spw:MultiplyStep a p-plan:Step ;
+    p-plan:isStepOfPlan spw:MultiplyTemplate ;
+    rdfs:label "Multiply operation"@en ;
+    rdfs:comment "Performs multiplication with unit algebra"@en .
+
+spw:MultiplyInput1 a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:MultiplyTemplate ;
+    p-plan:isInputVarOf spw:MultiplyStep ;
+    rdfs:label "Multiplicand"@en ;
+    rdfs:comment "First QUDT QuantityValue to multiply"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
+
+spw:MultiplyInput2 a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:MultiplyTemplate ;
+    p-plan:isInputVarOf spw:MultiplyStep ;
+    rdfs:label "Multiplier"@en ;
+    rdfs:comment "Second QUDT QuantityValue to multiply"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
+
+spw:MultiplyOutput a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:MultiplyTemplate ;
+    p-plan:isOutputVarOf spw:MultiplyStep ;
+    rdfs:label "Product"@en ;
+    rdfs:comment "The product with derived unit"@en ;
+    spw:expectedType qudt:QuantityValue .
+
+spw:MultiplyCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Multiply implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/multiply.py> ;
+    dcterms:license <https://spdx.org/licenses/MIT> .
+
+spw:MultiplyStep 
+    prov:used spw:MultiplyCode, spw:SumRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+
+################################################################################
+# WORKFLOW TEMPLATE 3: Convert QUDT Units
+#
+# Converts a QUDT QuantityValue from one unit to another compatible unit.
+#
+# Inputs: 1 QuantityValue, 1 target unit
+# Output: 1 QuantityValue (converted)
+################################################################################
+
+spw:ConvertTemplate a p-plan:Plan, prov:Plan ;
+    rdfs:label "Convert QUDT Units"@en ;
+    rdfs:comment "Converts a QUDT QuantityValue to a different compatible unit"@en ;
+    schema:category "Units" ;
+    schema:keywords "convert", "conversion", "qudt", "units" ;
+    dcterms:created "2026-01-30"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    schema:version "1.0.0" .
+
+spw:ConvertStep a p-plan:Step ;
+    p-plan:isStepOfPlan spw:ConvertTemplate ;
+    rdfs:label "Unit conversion operation"@en ;
+    rdfs:comment "Performs unit conversion using QUDT conversion factors"@en .
+
+spw:ConvertInput a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:ConvertTemplate ;
+    p-plan:isInputVarOf spw:ConvertStep ;
+    rdfs:label "Input Quantity"@en ;
+    rdfs:comment "QUDT QuantityValue to convert"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
+
+spw:ConvertTargetUnit a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:ConvertTemplate ;
+    p-plan:isInputVarOf spw:ConvertStep ;
+    rdfs:label "Target Unit"@en ;
+    rdfs:comment "QUDT Unit to convert to (must be compatible)"@en ;
+    spw:expectedType qudt:Unit ;
+    spw:required true .
+
+spw:ConvertOutput a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:ConvertTemplate ;
+    p-plan:isOutputVarOf spw:ConvertStep ;
+    rdfs:label "Converted Quantity"@en ;
+    rdfs:comment "The converted QuantityValue in the target unit"@en ;
+    spw:expectedType qudt:QuantityValue .
+
+spw:ConvertCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Unit conversion implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/convert.py> ;
+    dcterms:license <https://spdx.org/licenses/MIT> .
+
+spw:ConvertStep 
+    prov:used spw:ConvertCode, spw:SumRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+
+################################################################################
+# End of Workflow Catalog
+################################################################################
