@@ -62,7 +62,7 @@ spw:SumCode a prov:Entity,
     rdfs:label "Sum implementation (Python/Pyodide)"@en ;
     dcterms:license <https://spdx.org/licenses/MIT> ;
     prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
-    schema:codeRepository <https://thhanke.github.io/PyodideSemanticWorkflow> ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
     schema:programmingLanguage "Python" ;
     schema:runtimePlatform "Pyodide" .
 
