@@ -1,85 +1,236 @@
 @base <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
-@prefix :   <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
+@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix qudt: <http://qudt.org/schema/qudt/> .
 @prefix unit: <http://qudt.org/vocab/unit/> .
-@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
-@prefix bfo:  <https://example.org/bfo/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <https://schema.org/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix bfo: <https://example.org/bfo/> .
+
+################################################################################
+#
+# COMPLETE EXAMPLE: Sum Workflow Template + Execution
+#
+# This file demonstrates the complete two-level architecture:
+# 
+# LEVEL 1: WORKFLOW TEMPLATE (Design Time)
+#   - Abstract definition using P-Plan
+#   - Defines what KINDS of inputs are needed
+#   - Reusable across multiple executions
+#
+# LEVEL 2: WORKFLOW EXECUTION (Runtime)
+#   - Concrete instantiation with actual data
+#   - Links back to template using p-plan:correspondsTo properties
+#   - Full PROV-O provenance tracking
+#
+# NOTE: In production, these would typically be in separate files:
+#   - Templates in workflows/catalog.ttl
+#   - Executions generated at runtime
+#
+# This combined file is for educational purposes.
+#
+################################################################################
+
+
+################################################################################
+# LEVEL 1: WORKFLOW TEMPLATE DEFINITION
+# (This section would normally be in workflows/catalog.ttl)
+################################################################################
 
 #################################################################
-
-# Engine (Pyodide) as a PROV SoftwareAgent
-
+# Software Agent: Pyodide Runtime
 #################################################################
 
-:PyodideEngine a prov:SoftwareAgent ;
-  prov:label "Pyodide JavaScript/WASM Python runtime" ;
-  prov:atLocation <https://www.npmjs.com/package/pyodide> .
+spw:PyodideEngine a prov:SoftwareAgent ;
+    rdfs:label "Pyodide JavaScript/WASM Python runtime"@en ;
+    rdfs:comment "WebAssembly-compiled Python runtime for browser execution"@en ;
+    prov:atLocation <https://www.npmjs.com/package/pyodide> ;
+    schema:softwareVersion "0.25.0" ;
+    schema:programmingLanguage "Python", "JavaScript" .
+
 
 #################################################################
-
-# Artefacts: requirements file + Python code
-
+# Workflow Template: Sum QUDT Quantities
 #################################################################
 
-:SumRequirements a prov:Entity ;
-  prov:label "Python requirements.txt for sum node" ;
-  prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/requirements.txt> .
+spw:SumTemplate a p-plan:Plan, prov:Plan ;
+    rdfs:label "Sum QUDT Quantities"@en ;
+    rdfs:comment "Sums two or more QUDT QuantityValue instances with compatible units"@en ;
+    schema:category "Mathematics" ;
+    schema:keywords "sum", "addition", "qudt", "units", "quantities" ;
+    dcterms:created "2026-01-30"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    schema:version "1.0.0" .
 
-:SumCode a prov:Entity ;
-  prov:label "Python script implementing sum for QUDT quantities" ;
-  prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/sum_mm.py> .
+# The step/process within this plan
+spw:SumStep a p-plan:Step ;
+    p-plan:isStepOfPlan spw:SumTemplate ;
+    rdfs:label "Sum operation"@en ;
+    rdfs:comment "Performs the summation of input quantity values"@en .
 
-#################################################################
+# Input Variable 1 (TEMPLATE - not concrete data!)
+spw:SumInput1 a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    p-plan:isInputVarOf spw:SumStep ;
+    rdfs:label "Input Quantity 1"@en ;
+    rdfs:comment "First QUDT QuantityValue to sum"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
 
-# Plan: how to run this node
+# Input Variable 2 (TEMPLATE - not concrete data!)
+spw:SumInput2 a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    p-plan:isInputVarOf spw:SumStep ;
+    rdfs:label "Input Quantity 2"@en ;
+    rdfs:comment "Second QUDT QuantityValue to sum"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
 
-#################################################################
+# Output Variable (TEMPLATE - not concrete data!)
+spw:SumOutput a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    p-plan:isOutputVarOf spw:SumStep ;
+    rdfs:label "Sum Result"@en ;
+    rdfs:comment "The resulting sum as a QUDT QuantityValue"@en ;
+    spw:expectedType qudt:QuantityValue .
 
-:SumNodePlan a prov:Plan ;
-  prov:label "Plan: sum two QUDT QuantityValues in millimeters using Pyodide" ;
-  # The app can inspect these prov:used links to know what to load
-  prov:used :PyodideEngine, :SumRequirements, :SumCode .
-
-#################################################################
-
-# Inputs: two QUDT quantity values in millimeters
-
-#################################################################
-
-:inputLength1 a qudt:QuantityValue ;
-  qudt:numericValue "2.0"^^xsd:decimal ;
-  qudt:unit unit:MilliM .
-
-:inputLength2 a qudt:QuantityValue ;
-  qudt:numericValue "3.0"^^xsd:decimal ;
-  qudt:unit unit:MilliM .
-
-#################################################################
-
-# Activity describing this specific run
-
-#################################################################
-
-:SumRun_1 a prov:Activity ;
-  prov:label "Execution: sum two millimeter values" ;
-  prov:hadPlan :SumNodePlan ;
-  prov:used :inputLength1, :inputLength2 ;
-  prov:wasAssociatedWith :PyodideEngine .
-
-# Explicit BFO-style input links to the Activity
-
-:inputLength1 bfo:is_input_of :SumRun_1 .
-:inputLength2 bfo:is_input_of :SumRun_1 .
 
 #################################################################
-
-# Result (this is what the Python code will add)
-
+# Implementation Code & Dependencies
 #################################################################
 
-#:sumResult1 a qudt:QuantityValue ;
-#  qudt:numericValue "5.0"^^xsd:decimal ;
-#  qudt:unit unit:MilliM ;
-#  prov:wasGeneratedBy :SumRun_1 ;
-#  prov:wasDerivedFrom :inputLength1, :inputLength2 .
+spw:SumCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
+    dcterms:license <https://spdx.org/licenses/MIT> .
+
+spw:SumRequirements a prov:Entity ;
+    rdfs:label "Python requirements for sum workflow"@en ;
+    rdfs:comment "rdflib==7.0.0 required for RDF processing"@en ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
+    spw:packageManager "pip" .
+
+# Link implementation to step
+spw:SumStep 
+    prov:used spw:SumCode, spw:SumRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+
+################################################################################
+# LEVEL 2: WORKFLOW EXECUTION INSTANCE
+# (This section would normally be generated at runtime)
+################################################################################
+
+#################################################################
+# Input Data: Concrete QUDT QuantityValues
+#
+# NOTE: These are EXECUTION-LEVEL artifacts with actual values,
+# NOT the template-level variables defined above.
+#################################################################
+
+spw:inputLength1 a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "2.0"^^xsd:decimal ;
+    qudt:unit unit:MilliM ;
+    rdfs:label "First input: 2.0 mm" ;
+    # CRITICAL: Link to template variable using P-Plan
+    p-plan:correspondsToVariable spw:SumInput1 .
+
+spw:inputLength2 a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "3.0"^^xsd:decimal ;
+    qudt:unit unit:MilliM ;
+    rdfs:label "Second input: 3.0 mm" ;
+    # CRITICAL: Link to template variable using P-Plan
+    p-plan:correspondsToVariable spw:SumInput2 .
+
+
+#################################################################
+# Execution Process: The Actual Activity
+#
+# This represents a specific run of the workflow, linking back
+# to the template using p-plan:correspondsToStep
+#################################################################
+
+spw:SumRun_1 a prov:Activity ;
+    rdfs:label "Execution: sum 2.0mm + 3.0mm"@en ;
+    # CRITICAL: Link to template step using P-Plan
+    p-plan:correspondsToStep spw:SumStep ;
+    # Standard PROV-O properties
+    prov:used spw:inputLength1, spw:inputLength2 ;
+    prov:wasAssociatedWith spw:PyodideEngine ;
+    prov:startedAtTime "2026-01-30T10:45:00Z"^^xsd:dateTime ;
+    prov:endedAtTime "2026-01-30T10:45:01Z"^^xsd:dateTime .
+
+# Explicit BFO-style input links (from original implementation)
+spw:inputLength1 bfo:is_input_of spw:SumRun_1 .
+spw:inputLength2 bfo:is_input_of spw:SumRun_1 .
+
+
+#################################################################
+# Output: Result Generated by the Execution
+#
+# This is the actual result produced by running the workflow.
+#################################################################
+
+<#sumResult_c22ad6de4d807f4b> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "5.0"^^xsd:decimal ;
+    qudt:unit unit:MilliM ;
+    rdfs:label "Result: 5.0 mm" ;
+    # CRITICAL: Link to template variable using P-Plan
+    p-plan:correspondsToVariable spw:SumOutput ;
+    # Standard PROV-O provenance
+    prov:wasGeneratedBy spw:SumRun_1 ;
+    prov:wasDerivedFrom spw:inputLength1, spw:inputLength2 .
+
+
+################################################################################
+# PROVENANCE QUERIES
+#
+# The two-level structure enables powerful queries:
+################################################################################
+
+# 1. Find all executions of the Sum template:
+#    SELECT ?execution WHERE {
+#        ?execution p-plan:correspondsToStep spw:SumStep .
+#    }
+
+# 2. Find what template was used for a specific result:
+#    SELECT ?template WHERE {
+#        <#sumResult_c22ad6de4d807f4b> p-plan:correspondsToVariable ?var .
+#        ?var p-plan:isVariableOfPlan ?template .
+#    }
+
+# 3. Find all results produced by executions of Sum template:
+#    SELECT ?result WHERE {
+#        ?execution p-plan:correspondsToStep spw:SumStep .
+#        ?result prov:wasGeneratedBy ?execution .
+#    }
+
+# 4. Trace inputs that contributed to a result:
+#    SELECT ?input WHERE {
+#        <#sumResult_c22ad6de4d807f4b> prov:wasDerivedFrom ?input .
+#    }
+
+
+################################################################################
+# KEY DIFFERENCES FROM OLD STRUCTURE
+#
+# OLD (Pre-P-Plan):
+#   - Mixed template and execution in unclear ways
+#   - No distinction between abstract variables and concrete data
+#   - Harder to query "all executions of template X"
+#   - No standard way to link execution back to template
+#
+# NEW (With P-Plan):
+#   - Clear two-level architecture
+#   - Template = p-plan:Plan, p-plan:Variable
+#   - Execution = prov:Activity, prov:Entity
+#   - Standard p-plan:correspondsTo* properties link levels
+#   - Enables powerful provenance and template reuse queries
+#
+################################################################################
