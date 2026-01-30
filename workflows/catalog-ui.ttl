@@ -3,6 +3,7 @@
 @prefix p-plan: <http://purl.org/net/p-plan#> .
 @prefix schema: <https://schema.org/> .
 @prefix css: <https://www.w3.org/TR/CSS/#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 ################################################################################
 #
