@@ -1,49 +1,121 @@
 @prefix bfo: <https://example.org/bfo/> .
-@prefix ex: <https://github.com/ThHanke/PyodideSemanticWorkflow/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <https://schema.org/> .
+@prefix spw: <https://github.com/ThHanke/PyodideSemanticWorkflow#> .
 @prefix unit: <http://qudt.org/vocab/unit/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<#sumResult_c22ad6de4d807f4b> a qudt:QuantityValue ;
+<#sumResult_5e9a0b5357bf2530> a qudt:QuantityValue ;
     qudt:numericValue 5.0 ;
     qudt:unit unit:MilliM ;
-    prov:wasDerivedFrom ex:inputLength1,
-        ex:inputLength2 ;
-    prov:wasGeneratedBy ex:SumRun_1 .
+    prov:wasDerivedFrom spw:inputLength1,
+        spw:inputLength2 ;
+    prov:wasGeneratedBy spw:SumRun_1 .
 
-ex:SumCode a prov:Entity ;
-    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/sum_mm.py> ;
-    prov:label "Python script implementing sum for QUDT quantities" .
+<https://github.com/ThHanke/PyodideSemanticWorkflow/#sumResult_c22ad6de4d807f4b> a qudt:QuantityValue,
+        prov:Entity ;
+    rdfs:label "Result: 5.0 mm" ;
+    p-plan:correspondsToVariable spw:SumOutput ;
+    qudt:numericValue 5.0 ;
+    qudt:unit unit:MilliM ;
+    prov:wasDerivedFrom spw:inputLength1,
+        spw:inputLength2 ;
+    prov:wasGeneratedBy spw:SumRun_1 .
 
-ex:SumNodePlan a prov:Plan ;
-    prov:label "Plan: sum two QUDT QuantityValues in millimeters using Pyodide" ;
-    prov:used ex:PyodideEngine,
-        ex:SumCode,
-        ex:SumRequirements .
+spw:SumCode a prov:Entity,
+        schema:SoftwareSourceCode ;
+    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" .
 
-ex:SumRequirements a prov:Entity ;
-    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/refs/heads/main/requirements.txt> ;
-    prov:label "Python requirements.txt for sum node" .
+spw:SumInput1 a p-plan:Variable ;
+    rdfs:label "Input Quantity 1"@en ;
+    p-plan:isInputVarOf spw:SumStep ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    rdfs:comment "First QUDT QuantityValue to sum"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
 
-ex:PyodideEngine a prov:SoftwareAgent ;
+spw:SumInput2 a p-plan:Variable ;
+    rdfs:label "Input Quantity 2"@en ;
+    p-plan:isInputVarOf spw:SumStep ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    rdfs:comment "Second QUDT QuantityValue to sum"@en ;
+    spw:expectedType qudt:QuantityValue ;
+    spw:required true .
+
+spw:SumOutput a p-plan:Variable ;
+    rdfs:label "Sum Result"@en ;
+    p-plan:isOutputVarOf spw:SumStep ;
+    p-plan:isVariableOfPlan spw:SumTemplate ;
+    rdfs:comment "The resulting sum as a QUDT QuantityValue"@en ;
+    spw:expectedType qudt:QuantityValue .
+
+spw:SumRequirements a prov:Entity ;
+    rdfs:label "Python requirements for sum workflow"@en ;
+    rdfs:comment "rdflib==7.0.0 required for RDF processing"@en ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
+    spw:packageManager "pip" .
+
+spw:PyodideEngine a prov:SoftwareAgent ;
+    rdfs:label "Pyodide JavaScript/WASM Python runtime"@en ;
+    rdfs:comment "WebAssembly-compiled Python runtime for browser execution"@en ;
     prov:atLocation <https://www.npmjs.com/package/pyodide> ;
-    prov:label "Pyodide JavaScript/WASM Python runtime" .
+    schema:programmingLanguage "JavaScript",
+        "Python" ;
+    schema:softwareVersion "0.25.0" .
 
-ex:inputLength1 a qudt:QuantityValue ;
+spw:inputLength1 a qudt:QuantityValue,
+        prov:Entity ;
+    rdfs:label "First input: 2.0 mm" ;
+    p-plan:correspondsToVariable spw:SumInput1 ;
     qudt:numericValue 2.0 ;
     qudt:unit unit:MilliM ;
-    bfo:is_input_of ex:SumRun_1 .
+    bfo:is_input_of spw:SumRun_1 .
 
-ex:inputLength2 a qudt:QuantityValue ;
+spw:inputLength2 a qudt:QuantityValue,
+        prov:Entity ;
+    rdfs:label "Second input: 3.0 mm" ;
+    p-plan:correspondsToVariable spw:SumInput2 ;
     qudt:numericValue 3.0 ;
     qudt:unit unit:MilliM ;
-    bfo:is_input_of ex:SumRun_1 .
+    bfo:is_input_of spw:SumRun_1 .
 
-ex:SumRun_1 a prov:Activity ;
-    prov:hadPlan ex:SumNodePlan ;
-    prov:label "Execution: sum two millimeter values" ;
-    prov:used ex:inputLength1,
-        ex:inputLength2 ;
-    prov:wasAssociatedWith ex:PyodideEngine .
+spw:SumRun_1 a prov:Activity ;
+    rdfs:label "Execution: sum 2.0mm + 3.0mm"@en ;
+    p-plan:correspondsToStep spw:SumStep ;
+    prov:endedAtTime "2026-01-30T10:45:01+00:00"^^xsd:dateTime ;
+    prov:startedAtTime "2026-01-30T10:45:00+00:00"^^xsd:dateTime ;
+    prov:used spw:inputLength1,
+        spw:inputLength2 ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+spw:SumStep a p-plan:Step ;
+    rdfs:label "Sum operation"@en ;
+    p-plan:isStepOfPlan spw:SumTemplate ;
+    rdfs:comment "Performs the summation of input quantity values"@en ;
+    prov:used spw:SumCode,
+        spw:SumRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+spw:SumTemplate a p-plan:Plan,
+        prov:Plan ;
+    rdfs:label "Sum QUDT Quantities"@en ;
+    dcterms:created "2026-01-30"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    rdfs:comment "Sums two or more QUDT QuantityValue instances with compatible units"@en ;
+    schema:category "Mathematics" ;
+    schema:keywords "addition",
+        "quantities",
+        "qudt",
+        "sum",
+        "units" ;
+    schema:version "1.0.0" .
 
