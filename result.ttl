@@ -9,7 +9,7 @@
 @prefix unit: <http://qudt.org/vocab/unit/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<#sumResult_5e9a0b5357bf2530> a qudt:QuantityValue ;
+<#sumResult_4f185970e180dece> a qudt:QuantityValue ;
     qudt:numericValue 5.0 ;
     qudt:unit unit:MilliM ;
     prov:wasDerivedFrom spw:inputLength1,
@@ -62,7 +62,7 @@ spw:SumCode a prov:Entity,
     rdfs:label "Sum implementation (Python/Pyodide)"@en ;
     dcterms:license <https://spdx.org/licenses/MIT> ;
     prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
-    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    schema:codeRepository <https://thhanke.github.io/PyodideSemanticWorkflow> ;
     schema:programmingLanguage "Python" ;
     schema:runtimePlatform "Pyodide" .
 
