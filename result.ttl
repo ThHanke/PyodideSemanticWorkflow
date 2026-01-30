@@ -26,14 +26,13 @@
         spw:inputLength2 ;
     prov:wasGeneratedBy spw:SumRun_1 .
 
-spw:SumCode a prov:Entity,
-        schema:SoftwareSourceCode ;
-    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
-    dcterms:license <https://spdx.org/licenses/MIT> ;
-    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
-    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
-    schema:programmingLanguage "Python" ;
-    schema:runtimePlatform "Pyodide" .
+spw:PyodideEngine a prov:SoftwareAgent ;
+    rdfs:label "Pyodide JavaScript/WASM Python runtime"@en ;
+    rdfs:comment "WebAssembly-compiled Python runtime for browser execution"@en ;
+    prov:atLocation <https://www.npmjs.com/package/pyodide> ;
+    schema:programmingLanguage "JavaScript",
+        "Python" ;
+    schema:softwareVersion "0.25.0" .
 
 spw:SumInput1 a p-plan:Variable ;
     rdfs:label "Input Quantity 1"@en ;
@@ -58,19 +57,20 @@ spw:SumOutput a p-plan:Variable ;
     rdfs:comment "The resulting sum as a QUDT QuantityValue"@en ;
     spw:expectedType qudt:QuantityValue .
 
+spw:SumCode a prov:Entity,
+        schema:SoftwareSourceCode ;
+    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" .
+
 spw:SumRequirements a prov:Entity ;
     rdfs:label "Python requirements for sum workflow"@en ;
     rdfs:comment "rdflib==7.0.0 required for RDF processing"@en ;
     prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
     spw:packageManager "pip" .
-
-spw:PyodideEngine a prov:SoftwareAgent ;
-    rdfs:label "Pyodide JavaScript/WASM Python runtime"@en ;
-    rdfs:comment "WebAssembly-compiled Python runtime for browser execution"@en ;
-    prov:atLocation <https://www.npmjs.com/package/pyodide> ;
-    schema:programmingLanguage "JavaScript",
-        "Python" ;
-    schema:softwareVersion "0.25.0" .
 
 spw:inputLength1 a qudt:QuantityValue,
         prov:Entity ;
@@ -92,18 +92,18 @@ spw:SumRun_1 a prov:Activity ;
     rdfs:label "Execution: sum 2.0mm + 3.0mm"@en ;
     p-plan:correspondsToStep spw:SumStep ;
     prov:endedAtTime "2026-01-30T10:45:01+00:00"^^xsd:dateTime ;
+    prov:hadPlan spw:SumTemplate ;
     prov:startedAtTime "2026-01-30T10:45:00+00:00"^^xsd:dateTime ;
-    prov:used spw:inputLength1,
+    prov:used spw:SumCode,
+        spw:SumRequirements,
+        spw:inputLength1,
         spw:inputLength2 ;
     prov:wasAssociatedWith spw:PyodideEngine .
 
 spw:SumStep a p-plan:Step ;
     rdfs:label "Sum operation"@en ;
     p-plan:isStepOfPlan spw:SumTemplate ;
-    rdfs:comment "Performs the summation of input quantity values"@en ;
-    prov:used spw:SumCode,
-        spw:SumRequirements ;
-    prov:wasAssociatedWith spw:PyodideEngine .
+    rdfs:comment "Performs the summation of input quantity values"@en .
 
 spw:SumTemplate a p-plan:Plan,
         prov:Plan ;
@@ -111,6 +111,8 @@ spw:SumTemplate a p-plan:Plan,
     dcterms:created "2026-01-30"^^xsd:date ;
     dcterms:license <https://spdx.org/licenses/MIT> ;
     rdfs:comment "Sums two or more QUDT QuantityValue instances with compatible units"@en ;
+    prov:wasDerivedFrom spw:SumCode,
+        spw:SumRequirements ;
     schema:category "Mathematics" ;
     schema:keywords "addition",
         "quantities",
