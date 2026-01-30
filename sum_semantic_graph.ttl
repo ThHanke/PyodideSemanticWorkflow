@@ -116,14 +116,9 @@ spw:SumRequirements a prov:Entity ;
     prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
     spw:packageManager "pip" .
 
-# Link implementation to the PLAN (not the step - steps are abstract!)
-# The Plan references what resources are needed for execution
-spw:SumTemplate
-    # PROV-O: Plans can reference entities they need
-    prov:wasDerivedFrom spw:SumCode, spw:SumRequirements .
-
-# Note: The Step is abstract and doesn't "use" concrete entities.
-# That happens at execution time in the Activity.
+# NOTE: In PROV-O, Plans are abstract specifications.
+# The concrete usage of code/requirements happens at the Activity level.
+# See below: spw:SumRun_1 (Activity) uses both the Plan AND the concrete entities.
 
 
 ################################################################################

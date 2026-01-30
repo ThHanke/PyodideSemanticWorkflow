@@ -136,9 +136,26 @@ Converts a QuantityValue to a different compatible unit.
 - **CSS Properties** - Standard web styling (from W3C WebRef)
 - **SPW Ontology** - Minimal custom properties for React Flow
 
-## Example: Template Definition
+## Two-Level Architecture: Template vs Execution
 
-From `workflows/catalog.ttl`:
+PyodideSemanticWorkflow uses a **two-level architecture** that separates abstract workflow templates from concrete executions:
+
+```text
+LEVEL 1: TEMPLATE (Design Time)        LEVEL 2: EXECUTION (Runtime)
+────────────────────────────────        ─────────────────────────────
+p-plan:Plan                             prov:Activity
+├─ p-plan:Step                          ├─ prov:hadPlan → Plan
+├─ p-plan:Variable (abstract)           ├─ p-plan:correspondsToStep → Step
+└─ prov:used (on Step)                  ├─ prov:used → [Resources + Data]
+   └─ Code, Requirements                └─ prov:wasAssociatedWith → Agent
+                                        
+                                        prov:Entity (concrete data)
+                                        └─ p-plan:correspondsToVariable → Variable
+```
+
+### Example: Template Definition
+
+From `workflows/catalog.ttl` - defines the **abstract workflow**:
 
 ```turtle
 spw:SumTemplate a p-plan:Plan, prov:Plan ;
@@ -146,34 +163,116 @@ spw:SumTemplate a p-plan:Plan, prov:Plan ;
     schema:category "Mathematics" ;
     dcterms:license <https://spdx.org/licenses/MIT> .
 
+# The step declares what it uses (inherited by executions)
 spw:SumStep a p-plan:Step ;
     p-plan:isStepOfPlan spw:SumTemplate ;
-    prov:used spw:SumCode .
+    prov:used spw:SumCode, spw:SumRequirements ;    # Implementation resources
+    prov:wasAssociatedWith spw:PyodideEngine .
 
+# Abstract input variable (template level)
 spw:SumInput1 a p-plan:Variable ;
     p-plan:isVariableOfPlan spw:SumTemplate ;
     p-plan:isInputVarOf spw:SumStep ;
     spw:expectedType qudt:QuantityValue ;
     spw:required true .
+
+# Implementation code
+spw:SumCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    prov:atLocation <https://raw.githubusercontent.com/.../workflows/sum.py> .
 ```
 
-## Example: Execution Instance
+### Example: Execution Instance
 
-From `examples/sum-execution.ttl`:
+From `sum_semantic_graph.ttl` - **concrete execution** with actual data:
 
 ```turtle
-# Concrete execution linking back to template
+# Concrete input data (execution level)
+spw:inputLength1 a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "2.0"^^xsd:decimal ;
+    qudt:unit unit:MilliM ;
+    p-plan:correspondsToVariable spw:SumInput1 .    # Links to template variable
+
+# Activity inherits Step resources + uses concrete data
 spw:SumRun_1 a prov:Activity ;
-    p-plan:correspondsToStep spw:SumStep ;
-    prov:used spw:inputLength1, spw:inputLength2 ;
+    prov:hadPlan spw:SumTemplate ;                  # Links to template
+    p-plan:correspondsToStep spw:SumStep ;          # Links to step
+    prov:used spw:SumCode, spw:SumRequirements ;    # Inherited from Step
+    prov:used spw:inputLength1, spw:inputLength2 ;  # Concrete user data
+    prov:wasAssociatedWith spw:PyodideEngine ;
     prov:startedAtTime "2026-01-30T10:45:00Z"^^xsd:dateTime .
 
 # Result with full provenance
-<#sumResult_abc123> a qudt:QuantityValue ;
-    qudt:numericValue 5.0 ;
+<#sumResult_c22ad6de4d807f4b> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "5.0"^^xsd:decimal ;
+    qudt:unit unit:MilliM ;
+    p-plan:correspondsToVariable spw:SumOutput ;    # Links to template variable
     prov:wasGeneratedBy spw:SumRun_1 ;
     prov:wasDerivedFrom spw:inputLength1, spw:inputLength2 .
 ```
+
+## Activity Generation Rules
+
+When executing a workflow template, Activities are generated following these rules:
+
+### Rule 1: Link to Plan/Step
+```turtle
+?activity prov:hadPlan ?plan ;
+          p-plan:correspondsToStep ?step .
+```
+
+### Rule 2: Inherit Step Resources (Key Pattern!)
+**The Activity inherits what the Step uses:**
+```turtle
+# In catalog.ttl (Template):
+spw:SumStep prov:used spw:SumCode, spw:SumRequirements .
+
+# Generates in execution:
+spw:SumRun_1 prov:used spw:SumCode, spw:SumRequirements .
+```
+
+**This is why we put `prov:used` on the Step** - it declares what gets inherited by all Activities executing that Step!
+
+### Rule 3: Add Concrete Data
+User provides concrete data linked to template variables:
+```turtle
+spw:inputLength1 p-plan:correspondsToVariable spw:SumInput1 .
+spw:SumRun_1 prov:used spw:inputLength1 .
+```
+
+### Rule 4: Associate with Agent
+Inherit agent from Step:
+```turtle
+spw:SumRun_1 prov:wasAssociatedWith spw:PyodideEngine .
+```
+
+### Rule 5: Generate Output
+Results link back to template variables:
+```turtle
+<#result> p-plan:correspondsToVariable spw:SumOutput ;
+          prov:wasGeneratedBy spw:SumRun_1 .
+```
+
+### The Complete Pattern
+
+```text
+Activity.prov:used = 
+    Step.prov:used                    // Inherit: Code, Requirements
+    + ConcreteData.correspondsTo(     // Plus user data
+        Variable.isInputVarOf(Step)   //   for input variables
+      )
+```
+
+**Example:** When executing `spw:SumStep`, the Activity uses:
+- `spw:SumCode` (inherited from Step)
+- `spw:SumRequirements` (inherited from Step)  
+- `spw:inputLength1` (user-provided data for `spw:SumInput1`)
+- `spw:inputLength2` (user-provided data for `spw:SumInput2`)
+
+**Complete working example:** See `sum_semantic_graph.ttl` for the full template + execution in one file.
+
+**Detailed guide:** See [docs/EXECUTION_GENERATION_RULES.md](docs/EXECUTION_GENERATION_RULES.md) for SPARQL queries, pseudocode, and validation rules.
 
 ## Installation & Setup
 
