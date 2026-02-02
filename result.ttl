@@ -34,6 +34,15 @@ spw:PyodideEngine a prov:SoftwareAgent ;
         "Python" ;
     schema:softwareVersion "0.25.0" .
 
+spw:SumCode a prov:Entity,
+        schema:SoftwareSourceCode ;
+    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" .
+
 spw:SumInput1 a p-plan:Variable ;
     rdfs:label "Input Quantity 1"@en ;
     p-plan:isInputVarOf spw:SumStep ;
@@ -56,15 +65,6 @@ spw:SumOutput a p-plan:Variable ;
     p-plan:isVariableOfPlan spw:SumTemplate ;
     rdfs:comment "The resulting sum as a QUDT QuantityValue"@en ;
     spw:expectedType qudt:QuantityValue .
-
-spw:SumCode a prov:Entity,
-        schema:SoftwareSourceCode ;
-    rdfs:label "Sum implementation (Python/Pyodide)"@en ;
-    dcterms:license <https://spdx.org/licenses/MIT> ;
-    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/sum.py> ;
-    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
-    schema:programmingLanguage "Python" ;
-    schema:runtimePlatform "Pyodide" .
 
 spw:SumRequirements a prov:Entity ;
     rdfs:label "Python requirements for sum workflow"@en ;
@@ -111,8 +111,6 @@ spw:SumTemplate a p-plan:Plan,
     dcterms:created "2026-01-30"^^xsd:date ;
     dcterms:license <https://spdx.org/licenses/MIT> ;
     rdfs:comment "Sums two or more QUDT QuantityValue instances with compatible units"@en ;
-    prov:wasDerivedFrom spw:SumCode,
-        spw:SumRequirements ;
     schema:category "Mathematics" ;
     schema:keywords "addition",
         "quantities",
