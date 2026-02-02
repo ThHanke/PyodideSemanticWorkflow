@@ -167,9 +167,6 @@ spw:SumRun_1 a prov:Activity ;
     prov:startedAtTime "2026-01-30T10:45:00Z"^^xsd:dateTime ;
     prov:endedAtTime "2026-01-30T10:45:01Z"^^xsd:dateTime .
 
-# Explicit BFO-style input links (from original implementation)
-spw:inputLength1 bfo:is_input_of spw:SumRun_1 .
-spw:inputLength2 bfo:is_input_of spw:SumRun_1 .
 
 
 #################################################################

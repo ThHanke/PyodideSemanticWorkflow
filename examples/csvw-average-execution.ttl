@@ -50,10 +50,6 @@ spw:LoadColumnRun_1 a prov:Activity ;
     prov:startedAtTime "2026-02-02T11:00:00Z"^^xsd:dateTime ;
     prov:endedAtTime "2026-02-02T11:00:02Z"^^xsd:dateTime .
 
-# BFO-style input links
-spw:metadataURIInput bfo:is_input_of spw:LoadColumnRun_1 .
-spw:columnNameInput bfo:is_input_of spw:LoadColumnRun_1 .
-
 # Step 1 Output: Loaded Column Data (Collection)
 # IMPORTANT: This corresponds to spw:LoadedColumnData which is BOTH
 # the output of Step 1 AND the input of Step 2 (defined in template)
@@ -108,9 +104,6 @@ spw:CalculateAverageRun_1 a prov:Activity ;
     prov:startedAtTime "2026-02-02T11:00:02Z"^^xsd:dateTime ;
     prov:endedAtTime "2026-02-02T11:00:03Z"^^xsd:dateTime ;
     prov:wasInformedBy spw:LoadColumnRun_1 .  # Links the two activities
-
-# BFO-style input link
-<#loadedTemperatureData> bfo:is_input_of spw:CalculateAverageRun_1 .
 
 # Step 2 Output: Average Temperature
 <#averageTempResult> a qudt:QuantityValue, prov:Entity ;

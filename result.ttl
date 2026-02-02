@@ -77,16 +77,14 @@ spw:inputLength1 a qudt:QuantityValue,
     rdfs:label "First input: 2.0 mm" ;
     p-plan:correspondsToVariable spw:SumInput1 ;
     qudt:numericValue 2.0 ;
-    qudt:unit unit:MilliM ;
-    bfo:is_input_of spw:SumRun_1 .
+    qudt:unit unit:MilliM .
 
 spw:inputLength2 a qudt:QuantityValue,
         prov:Entity ;
     rdfs:label "Second input: 3.0 mm" ;
     p-plan:correspondsToVariable spw:SumInput2 ;
     qudt:numericValue 3.0 ;
-    qudt:unit unit:MilliM ;
-    bfo:is_input_of spw:SumRun_1 .
+    qudt:unit unit:MilliM .
 
 spw:SumRun_1 a prov:Activity ;
     rdfs:label "Execution: sum 2.0mm + 3.0mm"@en ;

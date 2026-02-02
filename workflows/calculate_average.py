@@ -117,11 +117,13 @@ def run(input_turtle: str, activity_iri: str) -> str:
     
     activity = URIRef(activity_iri)
     
-    # Find input collection using bfo:is_input_of
+    # Find input collection using prov:used
+    # Filter to only collections that correspond to input variables
+    all_used = list(g.objects(activity, PROV.used))
     inputs = [
-        coll
-        for coll in g.subjects(BFO.is_input_of, activity)
-        if (coll, RDF.type, PROV.Collection) in g
+        entity for entity in all_used
+        if (entity, RDF.type, PROV.Collection) in g
+        and (entity, P_PLAN.correspondsToVariable, None) in g
     ]
     
     execution_hash = create_execution_hash(activity_iri, *[str(inp) for inp in inputs])

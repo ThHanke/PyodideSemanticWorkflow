@@ -250,10 +250,13 @@ def run(input_turtle: str, activity_iri: str) -> str:
     
     activity = URIRef(activity_iri)
     
-    # Find inputs using bfo:is_input_of
-    # Input 1: CSVW metadata URI (as literal)
-    # Input 2: Column name (as literal)
-    inputs = list(g.subjects(BFO.is_input_of, activity))
+    # Find input data entities using prov:used
+    # Filter to only entities that correspond to input variables (not code/requirements)
+    all_used = list(g.objects(activity, PROV.used))
+    inputs = [
+        entity for entity in all_used
+        if (entity, P_PLAN.correspondsToVariable, None) in g
+    ]
     
     execution_hash = create_execution_hash(activity_iri, *[str(inp) for inp in inputs])
     

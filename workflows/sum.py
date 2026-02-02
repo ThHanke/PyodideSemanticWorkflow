@@ -8,6 +8,7 @@ PROV = Namespace("http://www.w3.org/ns/prov#")
 QUDT = Namespace("http://qudt.org/schema/qudt/")
 UNIT = Namespace("http://qudt.org/vocab/unit/")
 OA = Namespace("http://www.w3.org/ns/oa#")
+P_PLAN = Namespace("http://purl.org/net/p-plan#")
 
 # Domain vocabulary
 EX = Namespace("https://github.com/ThHanke/PyodideSemanticWorkflow/")
@@ -156,11 +157,13 @@ def run(input_turtle: str, activity_iri: str) -> str:
     # DON'T add activity to output graph - it already exists in the main graph
     # Adding it here would cause the node to be recreated and lose its edges
 
-    # Find inputs using bfo:is_input_of
+    # Find input QuantityValues using prov:used
+    # Filter to only QuantityValues that correspond to input variables (not code/requirements)
+    all_used = list(g.objects(activity, PROV.used))
     inputs = [
-        qv
-        for qv in g.subjects(BFO.is_input_of, activity)
-        if (qv, RDF.type, QUDT.QuantityValue) in g
+        entity for entity in all_used
+        if (entity, RDF.type, QUDT.QuantityValue) in g
+        and (entity, P_PLAN.correspondsToVariable, None) in g
     ]
 
     # Create execution hash ONCE - shared by all IRIs from this execution
@@ -170,7 +173,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
         _add_error(
             g,
             activity=activity,
-            message=f"Expected at least two qudt:QuantityValue inputs linked via bfo:is_input_of. Found {len(inputs)}",
+            message=f"Expected at least two qudt:QuantityValue inputs. Found {len(inputs)}",
             code="INPUT_TOO_FEW",
             execution_hash=execution_hash,
         )
