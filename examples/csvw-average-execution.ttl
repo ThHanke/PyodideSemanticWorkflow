@@ -1,0 +1,169 @@
+@base <https://thhanke.github.io/PyodideSemanticWorkflow/> .
+@prefix spw: <https://thhanke.github.io/PyodideSemanticWorkflow#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix qudt: <http://qudt.org/schema/qudt/> .
+@prefix unit: <http://qudt.org/vocab/unit/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix bfo: <https://example.org/bfo/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+################################################################################
+#
+# EXAMPLE: CSVW Column Average Workflow Execution
+#
+# This file demonstrates a complete execution instance of the two-step
+# CSVW Column Average workflow template defined in workflows/catalog.ttl.
+#
+# Step 1: Load the "Temperature" column from CSVW metadata
+# Step 2: Calculate the average of the loaded temperature values
+#
+# This shows how multi-step workflows are executed with data flowing
+# from one step to the next.
+#
+################################################################################
+
+
+################################################################################
+# STEP 1 EXECUTION: Load Column from CSVW
+################################################################################
+
+# Step 1 Input Data: CSVW Metadata URI
+spw:metadataURIInput a prov:Entity ;
+    rdf:value "https://raw.githubusercontent.com/Mat-O-Lab/CSVToCSVW/refs/heads/main/examples/example-metadata.json"^^xsd:anyURI ;
+    p-plan:correspondsToVariable spw:CSVWMetadataURI ;
+    rdfs:label "CSVW Metadata URI for temperature data"@en .
+
+# Step 1 Input Data: Column Name
+spw:columnNameInput a prov:Entity ;
+    rdf:value "temperature"^^xsd:string ;
+    p-plan:correspondsToVariable spw:CSVWColumnName ;
+    rdfs:label "Column name to load"@en .
+
+# Step 1 Activity: Load Column
+spw:LoadColumnRun_1 a prov:Activity ;
+    p-plan:correspondsToStep spw:LoadCSVWColumnStep ;
+    prov:hadPlan spw:CSVWAverageTemplate ;
+    prov:used spw:LoadCSVWColumnCode, spw:LoadCSVWColumnRequirements ;  # Inherited from Step
+    prov:used spw:metadataURIInput, spw:columnNameInput ;               # Concrete input data
+    prov:wasAssociatedWith spw:PyodideEngine ;
+    prov:startedAtTime "2026-02-02T11:00:00Z"^^xsd:dateTime ;
+    prov:endedAtTime "2026-02-02T11:00:02Z"^^xsd:dateTime .
+
+# BFO-style input links
+spw:metadataURIInput bfo:is_input_of spw:LoadColumnRun_1 .
+spw:columnNameInput bfo:is_input_of spw:LoadColumnRun_1 .
+
+# Step 1 Output: Loaded Column Data (Collection)
+# IMPORTANT: This corresponds to spw:LoadedColumnData which is BOTH
+# the output of Step 1 AND the input of Step 2 (defined in template)
+<#loadedTemperatureData> a prov:Entity, prov:Collection ;
+    p-plan:correspondsToVariable spw:LoadedColumnData ;
+    rdfs:label "Column data: Temperature"@en ;
+    prov:wasGeneratedBy spw:LoadColumnRun_1 ;
+    prov:wasDerivedFrom spw:metadataURIInput, spw:columnNameInput ;
+    qudt:unit unit:DEG_C ;
+    spw:sourceColumn "temperature"^^xsd:string ;
+    spw:columnTitle "Temperature"^^xsd:string ;
+    spw:valueCount "5"^^xsd:integer .
+
+# Individual temperature values (members of the collection)
+<#temp_value_0> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "23.5"^^xsd:decimal ;
+    qudt:unit unit:DEG_C .
+
+<#temp_value_1> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "24.1"^^xsd:decimal ;
+    qudt:unit unit:DEG_C .
+
+<#temp_value_2> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "22.9"^^xsd:decimal ;
+    qudt:unit unit:DEG_C .
+
+<#temp_value_3> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "23.8"^^xsd:decimal ;
+    qudt:unit unit:DEG_C .
+
+<#temp_value_4> a qudt:QuantityValue, prov:Entity ;
+    qudt:numericValue "23.2"^^xsd:decimal ;
+    qudt:unit unit:DEG_C .
+
+# Link values to collection
+<#loadedTemperatureData> prov:hadMember <#temp_value_0>, <#temp_value_1>, 
+                                         <#temp_value_2>, <#temp_value_3>, 
+                                         <#temp_value_4> .
+
+
+################################################################################
+# STEP 2 EXECUTION: Calculate Average
+################################################################################
+
+# Step 2 Activity: Calculate Average
+spw:CalculateAverageRun_1 a prov:Activity ;
+    p-plan:correspondsToStep spw:CalculateAverageStep ;
+    prov:hadPlan spw:CSVWAverageTemplate ;
+    prov:used spw:CalculateAverageCode, spw:CalculateAverageRequirements ;  # Inherited from Step
+    prov:used <#loadedTemperatureData> ;                                     # Output from Step 1
+    prov:wasAssociatedWith spw:PyodideEngine ;
+    prov:startedAtTime "2026-02-02T11:00:02Z"^^xsd:dateTime ;
+    prov:endedAtTime "2026-02-02T11:00:03Z"^^xsd:dateTime ;
+    prov:wasInformedBy spw:LoadColumnRun_1 .  # Links the two activities
+
+# BFO-style input link
+<#loadedTemperatureData> bfo:is_input_of spw:CalculateAverageRun_1 .
+
+# Step 2 Output: Average Temperature
+<#averageTempResult> a qudt:QuantityValue, prov:Entity ;
+    p-plan:correspondsToVariable spw:AverageOutput ;
+    rdfs:label "Average of 5 values"@en ;
+    qudt:numericValue "23.5"^^xsd:decimal ;  # (23.5 + 24.1 + 22.9 + 23.8 + 23.2) / 5 = 23.5
+    qudt:unit unit:DEG_C ;
+    prov:wasGeneratedBy spw:CalculateAverageRun_1 ;
+    prov:wasDerivedFrom <#loadedTemperatureData> ;
+    spw:valueCount "5"^^xsd:integer ;
+    spw:calculationMethod "arithmetic mean"^^xsd:string ;
+    spw:minValue "22.9"^^xsd:decimal ;
+    spw:maxValue "24.1"^^xsd:decimal .
+
+
+################################################################################
+# PROVENANCE CHAIN AND GENERIC DERIVATION
+#
+# The complete two-step provenance shows:
+# 1. Template (spw:CSVWAverageTemplate) defines the abstract two-step workflow
+# 2. Step 1 Execution (spw:LoadColumnRun_1):
+#    - Uses metadata URI and column name as inputs
+#    - Generates a Collection of temperature values
+#    - Collection corresponds to spw:LoadedColumnData variable
+# 3. Step 2 Execution (spw:CalculateAverageRun_1):
+#    - Uses the SAME Collection (because template says spw:LoadedColumnData 
+#      is input to CalculateAverageStep)
+#    - Generates the average temperature as output
+# 4. Activities are linked via prov:wasInformedBy
+# 5. All entities link back to their template variables via p-plan:correspondsToVariable
+#
+# GENERIC DERIVATION FROM TEMPLATE:
+# The data flow is derivable because in the template:
+#   spw:LoadedColumnData p-plan:isOutputVarOf spw:LoadCSVWColumnStep .
+#   spw:LoadedColumnData p-plan:isInputVarOf spw:CalculateAverageStep .
+# 
+# Therefore, the entity generated by LoadColumnRun_1 that correspondsToVariable
+# spw:LoadedColumnData MUST be used as input by CalculateAverageRun_1.
+#
+# This pattern works for ANY workflow with ANY number of steps!
+#
+# SPARQL Query to derive data flow:
+#   SELECT ?var ?stepA ?stepB WHERE {
+#     ?var p-plan:isOutputVarOf ?stepA ;
+#          p-plan:isInputVarOf ?stepB .
+#     FILTER(?stepA != ?stepB)
+#   }
+#   Result: spw:LoadedColumnData connects the two steps
+#
+# This enables queries like:
+# - "Find all executions of the CSVW Average workflow"
+# - "What was the input to the workflow?"
+# - "How was this average calculated?"
+# - "What were the intermediate results?"
+# - "What is the execution order?" (derived from variable connections)
+################################################################################

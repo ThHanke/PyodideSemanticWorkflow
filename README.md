@@ -84,16 +84,23 @@ function WorkflowEditor() {
 ```text
 PyodideSemanticWorkflow/
    workflows/
-      catalog.ttl              # Semantic workflow templates (Use Case 1 & 2)
-      catalog-ui.ttl           # Optional UI metadata (Use Case 2 only)
-      sum.py                   # Python implementation (Pyodide)
-      requirements.txt         # Python dependencies
+      catalog.ttl                          # Semantic workflow templates (Use Case 1 & 2)
+      catalog-ui.ttl                       # Optional UI metadata (Use Case 2 only)
+      sum.py                               # Python implementation (Pyodide)
+      load_csvw_column.py                  # CSVW loader (Step 1)
+      calculate_average.py                 # Average calculator (Step 2)
+      requirements.txt                     # Python dependencies
+      load_csvw_column_requirements.txt    # Step 1 requirements
+      calculate_average_requirements.txt   # Step 2 requirements
    ontology/
       spw.ttl                  # SPW vocabulary definition
       README.md                # Ontology documentation
    examples/
-      sum-execution.ttl        # Example execution with provenance
-      README.md                # Example documentation
+      sum-execution.ttl                 # Example execution with provenance
+      csvw-average-execution.ttl        # Two-step workflow execution example
+      example-measurements.csv          # Sample CSV data
+      example-measurements-metadata.json # CSVW metadata for sample data
+      README.md                         # Example documentation
    docs/
       USE_CASE_1.md           # Semantic-only integration guide
       USE_CASE_2.md           # React Flow UI integration guide
@@ -123,6 +130,19 @@ Converts a QuantityValue to a different compatible unit.
 - **Inputs:** 1 QuantityValue, 1 target Unit
 - **Output:** Converted QuantityValue
 - **Category:** Units
+
+### 4. **CSVW Column Average** (Two-Step Workflow)
+Demonstrates multi-step workflow composition by loading a column from CSVW metadata and calculating its average.
+- **Step 1 - Load Column:**
+  - **Inputs:** CSVW Metadata URI, Column Name
+  - **Output:** Collection of values with units
+  - **Requirements:** rdflib, requests
+- **Step 2 - Calculate Average:**
+  - **Input:** Collection from Step 1
+  - **Output:** Average as QuantityValue with unit
+  - **Requirements:** rdflib
+- **Category:** Data Processing
+- **Example:** Uses [CSVToCSVW example metadata](https://raw.githubusercontent.com/Mat-O-Lab/CSVToCSVW/refs/heads/main/examples/example-metadata.json)
 
 ## Standards Used
 

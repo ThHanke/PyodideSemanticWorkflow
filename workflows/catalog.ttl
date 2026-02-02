@@ -9,6 +9,7 @@
 @prefix schema: <https://schema.org/> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix bfo: <https://example.org/bfo/> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
 
 ################################################################################
 #
@@ -231,6 +232,126 @@ spw:ConvertCode a prov:Entity, schema:SoftwareSourceCode ;
 spw:ConvertStep 
     prov:used spw:ConvertCode, spw:SumRequirements ;
     prov:wasAssociatedWith spw:PyodideEngine .
+
+
+################################################################################
+# WORKFLOW TEMPLATE 4: CSVW Column Average (Two-Step Workflow)
+#
+# A composite workflow that demonstrates multi-step processing:
+# Step 1: Load a column from CSVW metadata
+# Step 2: Calculate the average of the loaded values
+#
+# This shows how to chain workflow steps where the output of one step
+# becomes the input of the next step.
+################################################################################
+
+spw:CSVWAverageTemplate a p-plan:Plan, prov:Plan ;
+    rdfs:label "CSVW Column Average"@en ;
+    rdfs:comment "Two-step workflow: loads a column from CSVW metadata and calculates its average"@en ;
+    schema:category "Data Processing" ;
+    schema:keywords "csvw", "average", "mean", "column", "data", "statistics" ;
+    dcterms:created "2026-02-02"^^xsd:date ;
+    dcterms:license <https://spdx.org/licenses/MIT> ;
+    schema:version "1.0.0" .
+
+# Step 1: Load Column from CSVW
+spw:LoadCSVWColumnStep a p-plan:Step ;
+    p-plan:isStepOfPlan spw:CSVWAverageTemplate ;
+    rdfs:label "Load column from CSVW metadata"@en ;
+    rdfs:comment "Loads a column from a CSV file using CSVW metadata, preserving units"@en .
+
+# Step 1 Input: CSVW Metadata URI
+spw:CSVWMetadataURI a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:CSVWAverageTemplate ;
+    p-plan:isInputVarOf spw:LoadCSVWColumnStep ;
+    rdfs:label "CSVW Metadata URI"@en ;
+    rdfs:comment "URI of the CSVW metadata JSON file describing the CSV data"@en ;
+    spw:expectedType xsd:anyURI ;
+    spw:required true .
+
+# Step 1 Input: Column Name
+spw:CSVWColumnName a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:CSVWAverageTemplate ;
+    p-plan:isInputVarOf spw:LoadCSVWColumnStep ;
+    rdfs:label "Column Name"@en ;
+    rdfs:comment "Name of the column to load from the CSV file"@en ;
+    spw:expectedType xsd:string ;
+    spw:required true .
+
+# Step 1 Output / Step 2 Input: Loaded Column Data
+# IMPORTANT: This variable is BOTH the output of Step 1 AND the input of Step 2
+# This makes the data flow derivable from the template
+spw:LoadedColumnData a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:CSVWAverageTemplate ;
+    p-plan:isOutputVarOf spw:LoadCSVWColumnStep ;
+    p-plan:isInputVarOf spw:CalculateAverageStep ;
+    rdfs:label "Loaded Column Data"@en ;
+    rdfs:comment "Collection of values loaded from the CSV column with units if present"@en ;
+    spw:expectedType prov:Collection .
+
+# Step 1 Implementation
+spw:LoadCSVWColumnCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Load CSVW column implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/load_csvw_column.py> ;
+    dcterms:license <https://spdx.org/licenses/MIT> .
+
+spw:LoadCSVWColumnRequirements a prov:Entity ;
+    rdfs:label "Python requirements for load CSVW column step"@en ;
+    rdfs:comment "rdflib==7.0.0, requests==2.31.0"@en ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/load_csvw_column_requirements.txt> ;
+    spw:packageManager "pip" .
+
+spw:LoadCSVWColumnStep 
+    prov:used spw:LoadCSVWColumnCode, spw:LoadCSVWColumnRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+# Step 2: Calculate Average
+spw:CalculateAverageStep a p-plan:Step ;
+    p-plan:isStepOfPlan spw:CSVWAverageTemplate ;
+    rdfs:label "Calculate average"@en ;
+    rdfs:comment "Calculates the arithmetic mean of values in a collection, preserving units"@en .
+
+
+# Step 2 Output: Average Result
+spw:AverageOutput a p-plan:Variable ;
+    p-plan:isVariableOfPlan spw:CSVWAverageTemplate ;
+    p-plan:isOutputVarOf spw:CalculateAverageStep ;
+    rdfs:label "Average Result"@en ;
+    rdfs:comment "The calculated average as a QUDT QuantityValue with unit"@en ;
+    spw:expectedType qudt:QuantityValue .
+
+# Step 2 Implementation
+spw:CalculateAverageCode a prov:Entity, schema:SoftwareSourceCode ;
+    rdfs:label "Calculate average implementation (Python/Pyodide)"@en ;
+    schema:programmingLanguage "Python" ;
+    schema:runtimePlatform "Pyodide" ;
+    schema:codeRepository <https://github.com/ThHanke/PyodideSemanticWorkflow> ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/calculate_average.py> ;
+    dcterms:license <https://spdx.org/licenses/MIT> .
+
+spw:CalculateAverageRequirements a prov:Entity ;
+    rdfs:label "Python requirements for calculate average step"@en ;
+    rdfs:comment "rdflib==7.0.0"@en ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/workflows/calculate_average_requirements.txt> ;
+    spw:packageManager "pip" .
+
+spw:CalculateAverageStep 
+    prov:used spw:CalculateAverageCode, spw:CalculateAverageRequirements ;
+    prov:wasAssociatedWith spw:PyodideEngine .
+
+# STEP ORDERING AND DATA FLOW:
+# The data flow between steps is derivable from the template:
+# - spw:LoadedColumnData is the output of LoadCSVWColumnStep
+# - spw:LoadedColumnData is also the input of CalculateAverageStep
+# Therefore: LoadCSVWColumnStep must execute before CalculateAverageStep
+# 
+# Generic derivation rule for any workflow:
+# If Variable V is isOutputVarOf Step A and isInputVarOf Step B,
+# then the output entity from Activity A (that correspondsToVariable V)
+# must be used as input by Activity B (via prov:used)
 
 
 ################################################################################

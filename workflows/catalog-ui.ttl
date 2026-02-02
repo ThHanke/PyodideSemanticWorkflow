@@ -141,5 +141,51 @@ spw:UnitsCategory a spw:WorkflowCategory ;
 
 
 ################################################################################
+# UI METADATA: CSVW Column Average Template
+#
+# Visual styling and React Flow node configuration for the CSVW Average workflow
+################################################################################
+
+spw:CSVWAverageTemplate
+    # Icon (table with graph icon)
+    schema:image """data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xMiAyMGwtNy0zIDctMyA3IDMtNyAzeiI+PC9wYXRoPjxwYXRoIGQ9Ik0xMiAxNGwtNy0zIDctMyA3IDMtNyAzeiI+PC9wYXRoPjxwYXRoIGQ9Ik0xMiA4bC03LTMgNy0zIDcgMy03IDN6Ij48L3BhdGg+PC9zdmc+""" ;
+    
+    # CSS Styling Properties
+    css:background-color "#f3e5f5" ;          # Light purple background
+    css:border-color "#9C27B0" ;              # Purple border
+    css:border-width "2px" ;
+    css:border-style "solid" ;
+    css:border-radius "8px" ;
+    css:color "#6a1b9a" ;                     # Dark purple text
+    css:padding "12px" ;
+    css:box-shadow "0 2px 4px rgba(0,0,0,0.1)" ;
+    
+    # React Flow Node Properties
+    spw:nodeType "semantic-workflow" ;
+    spw:defaultWidth "220" ;                   # Slightly wider for two-step workflow
+    spw:defaultHeight "100" ;                  # Taller to show both steps
+    spw:resizable false ;
+    spw:draggable true ;
+    
+    # Handle Configuration
+    spw:inputHandlePosition "left" ;
+    spw:outputHandlePosition "right" ;
+    spw:handleStyle "smooth" .
+
+
+################################################################################
+# CATEGORY STYLING: Data Processing
+#
+# Styling for the new Data Processing category
+################################################################################
+
+spw:DataProcessingCategory a spw:WorkflowCategory ;
+    rdfs:label "Data Processing" ;
+    css:background-color "#f3e5f5" ;
+    css:border-color "#9C27B0" ;
+    spw:icon "dataset" .
+
+
+################################################################################
 # End of UI Metadata
 ################################################################################

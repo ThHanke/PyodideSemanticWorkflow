@@ -1,0 +1,37 @@
+{
+  "@context": "http://www.w3.org/ns/csvw",
+  "url": "example-measurements.csv",
+  "dc:title": "Laboratory Measurements Example",
+  "dc:description": "Example dataset with temperature, pressure, and volume measurements",
+  "tableSchema": {
+    "columns": [
+      {
+        "name": "sample_id",
+        "titles": "Sample ID",
+        "datatype": "string",
+        "dc:description": "Unique identifier for each sample"
+      },
+      {
+        "name": "temperature",
+        "titles": "Temperature",
+        "datatype": "number",
+        "dc:description": "Temperature measurement",
+        "dc:unit": "°C"
+      },
+      {
+        "name": "pressure",
+        "titles": "Pressure",
+        "datatype": "number",
+        "dc:description": "Pressure measurement",
+        "dc:unit": "kPa"
+      },
+      {
+        "name": "volume",
+        "titles": "Volume",
+        "datatype": "number",
+        "dc:description": "Volume measurement",
+        "dc:unit": "mL"
+      }
+    ]
+  }
+}
