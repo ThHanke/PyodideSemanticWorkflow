@@ -1,9 +1,33 @@
 """
 Calculate the average of a collection of QUDT QuantityValues.
 
-Input: PROV Collection containing QUDT QuantityValues or numeric literals,
-       linked to the activity via prov:used + p-plan:correspondsToVariable.
-Output: Single QUDT QuantityValue with the arithmetic mean and shared unit.
+Follows the P-Plan + PROV-O two-level model:
+
+  Template level (spw: namespace, stays in urn:vg:workflows):
+    spw:AverageStep  a p-plan:Step
+    spw:CollectionIn a p-plan:Variable  ; p-plan:isInputVarOf  spw:AverageStep
+    spw:AverageOut   a p-plan:Variable  ; p-plan:isOutputVarOf spw:AverageStep
+
+  Run level (default namespace, lives in urn:vg:data):
+    :AverageRun_123  a prov:Activity, p-plan:Activity
+        p-plan:correspondsToStep  spw:AverageStep
+        prov:hadPlan              spw:AveragePlan
+        prov:used                 :CollectionIn_123      (run entity for collection)
+        prov:used                 spw:AverageCode        (resource, template IRI ok)
+        prov:wasAssociatedWith    spw:PyodideEngine
+
+    :CollectionIn_123  a prov:Collection, prov:Entity, p-plan:Entity
+        p-plan:correspondsToVariable  spw:CollectionIn
+        prov:hadMember  ... (members added by user before execution)
+
+    :averageResult_abc  a qudt:QuantityValue, prov:Entity, p-plan:Entity
+        p-plan:correspondsToVariable  spw:AverageOut
+        prov:wasGeneratedBy           :AverageRun_123
+        prov:wasDerivedFrom           :CollectionIn_123
+                                      (+ individual members for fine-grained provenance)
+
+Input:  The full urn:vg:data graph as Turtle.
+Output: Turtle with new result triples to merge back into urn:vg:data.
 """
 
 import hashlib
@@ -29,8 +53,8 @@ def data_ns_from_activity(activity_iri: str) -> str:
     """Derive the data namespace from the activity IRI.
 
     The activity IRI is already in the correct default namespace
-    (e.g. http://example.com/AverageRun_123), so we strip the local name
-    to get the base namespace for all output IRIs.
+    (e.g. http://example.com/AverageRun_123), so strip the local name
+    to get the base for all output IRIs.
     """
     iri = str(activity_iri)
     idx = max(iri.rfind('#'), iri.rfind('/'))
@@ -73,12 +97,12 @@ def _add_error(g: Graph, activity, message: str, code: str = None,
     g.bind("oa",   OA)
     g.bind("spw",  SPW)
 
-    g.add((ann_iri, RDF.type,          OA.Annotation))
-    g.add((ann_iri, OA.motivatedBy,    SPW.errorReporting))
-    g.add((ann_iri, OA.hasBody,        body))
+    g.add((ann_iri, RDF.type,           OA.Annotation))
+    g.add((ann_iri, OA.motivatedBy,     SPW.errorReporting))
+    g.add((ann_iri, OA.hasBody,         body))
 
     if activity is not None:
-        g.add((ann_iri, OA.hasTarget,       activity))
+        g.add((ann_iri, OA.hasTarget,        activity))
         g.add((ann_iri, PROV.wasGeneratedBy, activity))
 
     g.add((body, RDF.type,  OA.TextualBody))
@@ -93,14 +117,14 @@ def _add_error(g: Graph, activity, message: str, code: str = None,
 
 def run(input_turtle: str, activity_iri: str) -> str:
     """
-    Main entry point called by Pyodide runtime.
+    Main entry point called by the Pyodide runtime.
 
     Args:
-        input_turtle: Input graph in Turtle format
-        activity_iri: IRI of the prov:Activity being executed
+        input_turtle: Full urn:vg:data graph as Turtle
+        activity_iri: IRI of the prov:Activity being executed (default namespace)
 
     Returns:
-        Output graph in Turtle format with calculated average
+        Turtle with new result triples to merge back into urn:vg:data
     """
     data_ns = data_ns_from_activity(activity_iri)
     g = Graph()
@@ -123,36 +147,57 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     activity = URIRef(activity_iri)
 
-    # Find input collection: prov:used entity that carries p-plan:correspondsToVariable
-    # and is typed as prov:Collection
-    inputs = [
+    # Ensure the activity is typed as p-plan:Activity in the output
+    g.add((activity, RDF.type, PPLAN.Activity))
+
+    # Resolve template step, plan and output variable via p-plan links
+    step    = g.value(activity, PPLAN.correspondsToStep)
+    out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
+
+    # -----------------------------------------------------------------------
+    # Find the input collection
+    # Expected: one prov:Collection entity linked via prov:used that also
+    # carries p-plan:correspondsToVariable (run-level p-plan:Entity).
+    # -----------------------------------------------------------------------
+    input_collections = [
         entity for entity in g.objects(activity, PROV.used)
         if (entity, RDF.type, PROV.Collection) in g
         and (entity, PPLAN.correspondsToVariable, None) in g
     ]
 
     execution_hash = create_execution_hash(activity_iri,
-                                           *[str(inp) for inp in inputs])
+                                           *[str(c) for c in input_collections])
 
-    if len(inputs) < 1:
-        _add_error(g, activity,
-                   f"Expected 1 prov:Collection input via prov:used + "
-                   f"p-plan:correspondsToVariable. Found {len(inputs)}.",
-                   code="INPUT_TOO_FEW", data_ns=data_ns,
-                   execution_hash=execution_hash)
+    if len(input_collections) < 1:
+        _add_error(
+            g, activity,
+            "Expected 1 prov:Collection input via prov:used + "
+            "p-plan:correspondsToVariable. Found "
+            f"{len(input_collections)}.",
+            code="INPUT_TOO_FEW", data_ns=data_ns,
+            execution_hash=execution_hash,
+        )
         return g.serialize(format="turtle")
 
-    collection = inputs[0]
+    collection = input_collections[0]
+
+    # Ensure the collection is typed as p-plan:Entity (it is a run-level entity)
+    g.add((collection, RDF.type, PPLAN.Entity))
+
     members = list(g.objects(collection, PROV.hadMember))
 
     if len(members) == 0:
-        _add_error(g, activity, "Collection has no members (prov:hadMember).",
+        _add_error(g, activity,
+                   "Collection has no members (prov:hadMember).",
                    code="EMPTY_COLLECTION", data_ns=data_ns,
                    execution_hash=execution_hash)
         return g.serialize(format="turtle")
 
+    # -----------------------------------------------------------------------
+    # Extract numeric values and unit
+    # -----------------------------------------------------------------------
     values = []
-    units = set()
+    units  = set()
 
     for member in members:
         num_value = g.value(member, QUDT.numericValue) or g.value(member, RDF.value)
@@ -187,6 +232,9 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     unit_iri = next(iter(units)) if units else g.value(collection, QUDT.unit)
 
+    # -----------------------------------------------------------------------
+    # Calculate average
+    # -----------------------------------------------------------------------
     try:
         average = statistics.mean(values)
     except Exception as e:
@@ -195,28 +243,34 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    execution_hash=execution_hash)
         return g.serialize(format="turtle")
 
-    # Find the template output variable this result corresponds to
-    step    = g.value(activity, PPLAN.correspondsToStep)
-    out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
-
-    # Build result IRI in the data namespace
+    # -----------------------------------------------------------------------
+    # Build result entity in the data namespace
+    # -----------------------------------------------------------------------
     result_iri = create_output_iri(data_ns, "averageResult", execution_hash)
     cleanup_previous_result(g, result_iri)
 
-    g.add((result_iri, RDF.type,          QUDT.QuantityValue))
-    g.add((result_iri, RDF.type,          PROV.Entity))
-    g.add((result_iri, RDF.type,          PPLAN.Entity))
+    # Types: domain type + prov:Entity + p-plan:Entity (run-level entity)
+    g.add((result_iri, RDF.type, QUDT.QuantityValue))
+    g.add((result_iri, RDF.type, PROV.Entity))
+    g.add((result_iri, RDF.type, PPLAN.Entity))
+
     g.add((result_iri, RDFS.label,        Literal(f"Average of {len(values)} values")))
     g.add((result_iri, QUDT.numericValue, Literal(average, datatype=XSD.decimal)))
-    g.add((result_iri, PROV.wasGeneratedBy, activity))
-    g.add((result_iri, PROV.wasDerivedFrom, collection))
 
     if unit_iri:
         g.add((result_iri, QUDT.unit, unit_iri))
 
+    # Provenance links
+    g.add((result_iri, PROV.wasGeneratedBy, activity))
+    g.add((result_iri, PROV.wasDerivedFrom, collection))   # coarse-grained
+    for member in members:                                  # fine-grained
+        g.add((result_iri, PROV.wasDerivedFrom, member))
+
+    # Link back to template variable (run ↔ template bridge)
     if out_var:
         g.add((result_iri, PPLAN.correspondsToVariable, out_var))
 
+    # Calculation metadata
     g.add((result_iri, SPW.valueCount,        Literal(len(values), datatype=XSD.integer)))
     g.add((result_iri, SPW.calculationMethod, Literal("arithmetic mean")))
     g.add((result_iri, SPW.minValue,          Literal(min(values), datatype=XSD.decimal)))
