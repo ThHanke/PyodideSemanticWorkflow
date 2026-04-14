@@ -8,7 +8,11 @@
 @prefix unit: <http://qudt.org/vocab/unit/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<#sumResult_4f185970e180dece> a qudt:QuantityValue ;
+spw:sumResult_4f185970e180dece a p-plan:Entity,
+        qudt:QuantityValue,
+        prov:Entity ;
+    rdfs:label "Sum of 2 values" ;
+    p-plan:correspondsToVariable spw:SumOutput ;
     qudt:numericValue 5.0 ;
     qudt:unit unit:MilliM ;
     prov:wasDerivedFrom spw:inputLength1,
@@ -58,18 +62,18 @@ spw:SumInput2 a p-plan:Variable ;
     spw:expectedType qudt:QuantityValue ;
     spw:required true .
 
+spw:SumRequirements a prov:Entity ;
+    rdfs:label "Python requirements for sum workflow"@en ;
+    rdfs:comment "rdflib==7.0.0 required for RDF processing"@en ;
+    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
+    spw:packageManager "pip" .
+
 spw:SumOutput a p-plan:Variable ;
     rdfs:label "Sum Result"@en ;
     p-plan:isOutputVarOf spw:SumStep ;
     p-plan:isVariableOfPlan spw:SumTemplate ;
     rdfs:comment "The resulting sum as a QUDT QuantityValue"@en ;
     spw:expectedType qudt:QuantityValue .
-
-spw:SumRequirements a prov:Entity ;
-    rdfs:label "Python requirements for sum workflow"@en ;
-    rdfs:comment "rdflib==7.0.0 required for RDF processing"@en ;
-    prov:atLocation <https://raw.githubusercontent.com/ThHanke/PyodideSemanticWorkflow/main/requirements.txt> ;
-    spw:packageManager "pip" .
 
 spw:SumRun_1 a prov:Activity ;
     rdfs:label "Execution: sum 2.0mm + 3.0mm"@en ;
