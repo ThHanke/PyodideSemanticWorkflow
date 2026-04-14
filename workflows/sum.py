@@ -1,106 +1,81 @@
+"""
+Sum two or more QUDT QuantityValues.
+
+Input entities are discovered via prov:used on the activity, filtered to those
+that also carry p-plan:correspondsToVariable (i.e. are run-level p-plan:Entity
+instances for input variables).
+
+Output: Single QUDT QuantityValue with the sum and shared unit.
+"""
+
 import hashlib
 
-from rdflib import BNode, Graph, Literal, Namespace, URIRef
-from rdflib.namespace import RDF, XSD
+from rdflib import Graph, Namespace, URIRef, BNode, Literal
+from rdflib.namespace import RDF, RDFS, XSD
 
 # Standard vocabularies
-PROV = Namespace("http://www.w3.org/ns/prov#")
-QUDT = Namespace("http://qudt.org/schema/qudt/")
-UNIT = Namespace("http://qudt.org/vocab/unit/")
-OA = Namespace("http://www.w3.org/ns/oa#")
-P_PLAN = Namespace("http://purl.org/net/p-plan#")
+PROV   = Namespace("http://www.w3.org/ns/prov#")
+PPLAN  = Namespace("http://purl.org/net/p-plan#")
+QUDT   = Namespace("http://qudt.org/schema/qudt/")
+UNIT   = Namespace("http://qudt.org/vocab/unit/")
+OA     = Namespace("http://www.w3.org/ns/oa#")
+SPW    = Namespace("https://thhanke.github.io/PyodideSemanticWorkflow#")
 
-# Domain vocabulary
-EX = Namespace("https://github.com/ThHanke/PyodideSemanticWorkflow/")
-BFO = Namespace("https://example.org/bfo/")
+
+# ---------------------------------------------------------------------------
+# IRI helpers
+# ---------------------------------------------------------------------------
+
+def data_ns_from_activity(activity_iri: str) -> str:
+    """Derive the data namespace from the activity IRI.
+
+    The activity IRI is already in the correct default namespace
+    (e.g. http://example.com/SumRun_123), so we strip the local name
+    to get the base namespace for all output IRIs.
+    """
+    iri = str(activity_iri)
+    idx = max(iri.rfind('#'), iri.rfind('/'))
+    return iri[:idx + 1] if idx >= 0 else iri + '/'
 
 
 def create_execution_hash(activity_iri: str, *input_iris: str) -> str:
-    """
-    Create a deterministic hash from activity IRI and input IRIs.
-
-    This hash is shared by ALL results from the same execution, making it easy
-    to identify which resources belong to the same activity run.
-
-    Args:
-        activity_iri: IRI of the activity being executed
-        *input_iris: IRIs of all inputs to the activity
-
-    Returns:
-        16-character hex hash string
-    """
-    # Sort inputs for order-independent hashing
+    """Deterministic hash from activity IRI + input IRIs (order-independent)."""
     sorted_inputs = sorted(str(iri) for iri in input_iris)
-
-    # Combine activity IRI with all input IRIs
-    combined = str(activity_iri) + "".join(sorted_inputs)
-
-    # Create SHA256 hash and truncate to 16 characters for readability
-    return hashlib.sha256(combined.encode("utf-8")).hexdigest()[:16]
+    combined = str(activity_iri) + ''.join(sorted_inputs)
+    return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:16]
 
 
-def create_deterministic_iri(prefix: str, execution_hash: str) -> URIRef:
-    """
-    Create a deterministic IRI using a prefix and shared execution hash.
+def create_output_iri(data_ns: str, prefix: str, execution_hash: str) -> URIRef:
+    """Create a data-namespace IRI for an output entity."""
+    return URIRef(f"{data_ns}{prefix}_{execution_hash}")
 
-    The prefix (spelling part) makes IRIs unique within an execution.
-    The hash (shared part) groups all results from the same execution.
 
-    Args:
-        prefix: Meaningful prefix for the IRI (e.g., "sumResult", "errorAnn")
-        execution_hash: Shared hash from create_execution_hash()
-
-    Returns:
-        URIRef with format: #{prefix}_{hash}
-    """
-    return URIRef(f"#{prefix}_{execution_hash}")
-
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
-    """
-    Remove all triples related to a previous result entity from the graph.
-
-    This prevents base URI pollution when re-running an activity by ensuring
-    the old result entity is completely removed before creating a new one.
-
-    Args:
-        g: The RDF graph to clean
-        result_iri: The IRI of the result entity to remove
-
-    Returns:
-        Number of triples removed
-    """
-    triples_to_remove = []
-
-    # Find all triples where result_iri is the subject
-    for s, p, o in g.triples((result_iri, None, None)):
-        triples_to_remove.append((s, p, o))
-
-    # Find all triples where result_iri is the object
-    for s, p, o in g.triples((None, None, result_iri)):
-        triples_to_remove.append((s, p, o))
-
-    # Remove all found triples
-    for triple in triples_to_remove:
-        g.remove(triple)
-
-    return len(triples_to_remove)
+    """Remove all triples for a previous result entity (idempotent re-runs)."""
+    triples = list(g.triples((result_iri, None, None))) + \
+              list(g.triples((None, None, result_iri)))
+    for t in triples:
+        g.remove(t)
+    return len(triples)
 
 
-def _add_error(
-    g: Graph, activity, message: str, code: str = None, execution_hash: str = "unknown"
-) -> None:
-    """Add an error as a Web Annotation with deterministic IRI."""
-    # Use shared execution hash - prefix makes it unique
-    ann_iri = create_deterministic_iri("errorAnn", execution_hash)
+def _add_error(g: Graph, activity, message: str, code: str = None,
+               data_ns: str = "http://example.com/",
+               execution_hash: str = "unknown") -> None:
+    """Record an error as a Web Annotation with a data-namespace IRI."""
+    ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
     body = BNode()
 
     g.bind("prov", PROV)
     g.bind("oa", OA)
-    g.bind("ex", EX)
+    g.bind("spw", SPW)
 
     g.add((ann_iri, RDF.type, OA.Annotation))
-    g.add((ann_iri, OA.motivatedBy, EX.errorReporting))
+    g.add((ann_iri, OA.motivatedBy, SPW.errorReporting))
     g.add((ann_iri, OA.hasBody, body))
 
     if activity is not None:
@@ -109,10 +84,13 @@ def _add_error(
 
     g.add((body, RDF.type, OA.TextualBody))
     g.add((body, RDF.value, Literal(message, datatype=XSD.string)))
-
     if code is not None:
-        g.add((body, EX.errorCode, Literal(code, datatype=XSD.string)))
+        g.add((body, SPW.errorCode, Literal(code, datatype=XSD.string)))
 
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
 
 def run(input_turtle: str, activity_iri: str) -> str:
     """
@@ -125,61 +103,47 @@ def run(input_turtle: str, activity_iri: str) -> str:
     Returns:
         Output graph in Turtle format
     """
+    data_ns = data_ns_from_activity(activity_iri)
     g = Graph()
 
-    # Parse input graph
     try:
         g.parse(data=input_turtle, format="turtle")
     except Exception as e:
         g = Graph()
-        g.bind("prov", PROV)
-        g.bind("oa", OA)
-        g.bind("ex", EX)
-        _add_error(
-            g,
-            activity=None,
-            message=f"Failed to parse input graph: {e}",
-            code="PARSE_ERROR",
-        )
+        _add_error(g, activity=None,
+                   message=f"Failed to parse input graph: {e}",
+                   code="PARSE_ERROR",
+                   data_ns=data_ns)
         return g.serialize(format="turtle")
 
-    # Bind prefixes
-    g.bind("prov", PROV)
-    g.bind("qudt", QUDT)
-    g.bind("unit", UNIT)
-    g.bind("bfo", BFO)
-    g.bind("oa", OA)
-    g.bind("ex", EX)
+    g.bind("prov",   PROV)
+    g.bind("p-plan", PPLAN)
+    g.bind("qudt",   QUDT)
+    g.bind("unit",   UNIT)
+    g.bind("oa",     OA)
+    g.bind("spw",    SPW)
 
-    # Use the provided activity_iri
     activity = URIRef(activity_iri)
 
-    # DON'T add activity to output graph - it already exists in the main graph
-    # Adding it here would cause the node to be recreated and lose its edges
-
-    # Find input QuantityValues using prov:used
-    # Filter to only QuantityValues that correspond to input variables (not code/requirements)
-    all_used = list(g.objects(activity, PROV.used))
+    # Find input entities: things the activity prov:used that are p-plan:Entity
+    # instances (i.e. carry p-plan:correspondsToVariable)
     inputs = [
-        entity for entity in all_used
-        if (entity, RDF.type, QUDT.QuantityValue) in g
-        and (entity, P_PLAN.correspondsToVariable, None) in g
+        entity for entity in g.objects(activity, PROV.used)
+        if (entity, PPLAN.correspondsToVariable, None) in g
+        and (entity, RDF.type, QUDT.QuantityValue) in g
     ]
 
-    # Create execution hash ONCE - shared by all IRIs from this execution
     execution_hash = create_execution_hash(activity_iri, *[str(qv) for qv in inputs])
 
     if len(inputs) < 2:
-        _add_error(
-            g,
-            activity=activity,
-            message=f"Expected at least two qudt:QuantityValue inputs. Found {len(inputs)}",
-            code="INPUT_TOO_FEW",
-            execution_hash=execution_hash,
-        )
+        _add_error(g, activity,
+                   f"Expected at least 2 qudt:QuantityValue inputs linked via "
+                   f"prov:used + p-plan:correspondsToVariable. Found {len(inputs)}.",
+                   code="INPUT_TOO_FEW",
+                   data_ns=data_ns,
+                   execution_hash=execution_hash)
         return g.serialize(format="turtle")
 
-    # Read numeric values
     values = []
     units = set()
 
@@ -188,66 +152,52 @@ def run(input_turtle: str, activity_iri: str) -> str:
         unit = g.value(qv, QUDT.unit)
 
         if num is None:
-            _add_error(
-                g,
-                activity,
-                f"Input {qv} has no qudt:numericValue",
-                "MISSING_NUMERIC_VALUE",
-                execution_hash=execution_hash,
-            )
+            _add_error(g, activity, f"Input {qv} has no qudt:numericValue",
+                       "MISSING_NUMERIC_VALUE", data_ns=data_ns,
+                       execution_hash=execution_hash)
             return g.serialize(format="turtle")
 
         try:
             values.append(float(num))
         except Exception:
-            _add_error(
-                g,
-                activity,
-                f"Input {qv} has non-numeric value {num}",
-                "NON_NUMERIC_VALUE",
-                execution_hash=execution_hash,
-            )
+            _add_error(g, activity, f"Input {qv} has non-numeric value {num}",
+                       "NON_NUMERIC_VALUE", data_ns=data_ns,
+                       execution_hash=execution_hash)
             return g.serialize(format="turtle")
 
         if unit is not None:
             units.add(unit)
 
     if len(units) > 1:
-        _add_error(
-            g,
-            activity,
-            "Inputs have different units: " + ", ".join(str(u) for u in units),
-            code="UNIT_MISMATCH",
-            execution_hash=execution_hash,
-        )
+        _add_error(g, activity,
+                   "Inputs have different units: " + ", ".join(str(u) for u in units),
+                   code="UNIT_MISMATCH", data_ns=data_ns,
+                   execution_hash=execution_hash)
         return g.serialize(format="turtle")
 
     unit_iri = next(iter(units)) if units else UNIT.MilliM
-
-    # Compute sum
     total = sum(values)
 
-    # Create result IRI using shared execution hash
-    # The prefix "sumResult" makes it unique, hash groups it with other results from same execution
-    result_qv = create_deterministic_iri("sumResult", execution_hash)
+    # Find the template output variable this result corresponds to
+    step = g.value(activity, PPLAN.correspondsToStep)
+    out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
 
-    # CRITICAL: Clean up any previous result with this IRI from the graph
-    # This prevents base URI pollution when re-running the activity
-    removed_count = cleanup_previous_result(g, result_qv)
-    if removed_count > 0:
-        print(
-            f"[INFO] Removed {removed_count} triples from previous result {result_qv}"
-        )
+    # Build result IRI in the data namespace
+    result_iri = create_output_iri(data_ns, "sumResult", execution_hash)
+    cleanup_previous_result(g, result_iri)
 
-    # Now add the fresh result
-    g.add((result_qv, RDF.type, QUDT.QuantityValue))
-    g.add((result_qv, QUDT.numericValue, Literal(total, datatype=XSD.decimal)))
-    g.add((result_qv, QUDT.unit, unit_iri))
-    g.add((result_qv, PROV.wasGeneratedBy, activity))
+    g.add((result_iri, RDF.type,                  QUDT.QuantityValue))
+    g.add((result_iri, RDF.type,                  PROV.Entity))
+    g.add((result_iri, RDF.type,                  PPLAN.Entity))
+    g.add((result_iri, RDFS.label,                Literal(f"Sum of {len(values)} values")))
+    g.add((result_iri, QUDT.numericValue,         Literal(total, datatype=XSD.decimal)))
+    g.add((result_iri, QUDT.unit,                 unit_iri))
+    g.add((result_iri, PROV.wasGeneratedBy,       activity))
+
+    if out_var:
+        g.add((result_iri, PPLAN.correspondsToVariable, out_var))
 
     for qv in inputs:
-        g.add((result_qv, PROV.wasDerivedFrom, qv))
+        g.add((result_iri, PROV.wasDerivedFrom, qv))
 
-    # Serialize and return
-    result = g.serialize(format="turtle")
-    return result
+    return g.serialize(format="turtle")
