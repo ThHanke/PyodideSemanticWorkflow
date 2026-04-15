@@ -94,21 +94,25 @@ def _new_output_graph() -> Graph:
 
 def _add_error(out: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
-               execution_hash: str = "unknown") -> None:
-    """Record an error as a Web Annotation (W3C OA) targeting the activity.
+               execution_hash: str = "unknown",
+               target=None) -> None:
+    """Record an error as a Web Annotation (W3C OA).
 
-    Message and code are placed directly on the annotation IRI (no blank node body)
-    so the canvas can display them without blank-node noise.
+    oa:hasTarget  → the entity the error is about (defaults to activity).
+    prov:wasGeneratedBy → always the activity.
+    Message and code are placed directly on the annotation IRI (no blank node body).
     """
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
+    effective_target = target if target is not None else activity
 
     out.add((ann_iri, RDF.type,        OA.Annotation))
     out.add((ann_iri, OA.motivatedBy,  OA.assessing))
     out.add((ann_iri, RDFS.label,      Literal(message, datatype=XSD.string)))
     out.add((ann_iri, RDF.value,       Literal(message, datatype=XSD.string)))
 
+    if effective_target is not None:
+        out.add((ann_iri, OA.hasTarget, effective_target))
     if activity is not None:
-        out.add((ann_iri, OA.hasTarget,        activity))
         out.add((ann_iri, PROV.wasGeneratedBy, activity))
 
     if code is not None:
@@ -175,7 +179,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
         if num is None:
             _add_error(out, activity, f"Input {qv} has no qudt:numericValue",
                        "MISSING_NUMERIC_VALUE", data_ns=data_ns,
-                       execution_hash=execution_hash)
+                       execution_hash=execution_hash, target=qv)
             return out.serialize(format="turtle")
 
         try:
@@ -183,7 +187,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
         except Exception:
             _add_error(out, activity, f"Input {qv} has non-numeric value {num}",
                        "NON_NUMERIC_VALUE", data_ns=data_ns,
-                       execution_hash=execution_hash)
+                       execution_hash=execution_hash, target=qv)
             return out.serialize(format="turtle")
 
         if unit is not None:
