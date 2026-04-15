@@ -45,9 +45,26 @@ def create_execution_hash(activity_iri: str, *input_iris: str) -> str:
     return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:16]
 
 
+def local_name(iri) -> str:
+    """Extract the local name from an IRI (after the last # or /)."""
+    s = str(iri)
+    idx = max(s.rfind('#'), s.rfind('/'))
+    return s[idx + 1:] if idx >= 0 else s
+
+
 def create_output_iri(data_ns: str, prefix: str, execution_hash: str) -> URIRef:
-    """Create a data-namespace IRI for an output entity."""
+    """Create a data-namespace IRI for an output entity (used for error annotations)."""
     return URIRef(f"{data_ns}{prefix}_{execution_hash}")
+
+
+def activity_output_iri(activity_iri: str, out_var) -> URIRef:
+    """Derive the output entity IRI from the activity IRI + P-Plan output variable.
+
+    Matches the IRI the app creates during instantiation:
+        activityIri + '_' + localname(outputVariable)
+    e.g. http://example.com/SumRun_1234_SumOutput
+    """
+    return URIRef(f"{activity_iri}_{local_name(out_var)}")
 
 
 # ---------------------------------------------------------------------------
@@ -182,8 +199,12 @@ def run(input_turtle: str, activity_iri: str) -> str:
     step = g.value(activity, PPLAN.correspondsToStep)
     out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
 
-    # Build result IRI in the data namespace
-    result_iri = create_output_iri(data_ns, "sumResult", execution_hash)
+    # Build result IRI — derived from activityIri + P-Plan output variable local name,
+    # matching the placeholder the app created during workflow instantiation.
+    if out_var:
+        result_iri = activity_output_iri(activity_iri, out_var)
+    else:
+        result_iri = create_output_iri(data_ns, "sumResult", execution_hash)
     cleanup_previous_result(g, result_iri)
 
     g.add((result_iri, RDF.type,                  QUDT.QuantityValue))
