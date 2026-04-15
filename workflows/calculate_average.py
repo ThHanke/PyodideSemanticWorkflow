@@ -33,7 +33,7 @@ Output: Turtle with new result triples to merge back into urn:vg:data.
 import hashlib
 import statistics
 
-from rdflib import BNode, Graph, Literal, Namespace, URIRef
+from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
 # Standard vocabularies
@@ -120,22 +120,24 @@ def _new_output_graph() -> Graph:
 def _add_error(out: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
                execution_hash: str = "unknown") -> None:
-    """Record an error as a Web Annotation (W3C OA) targeting the activity."""
+    """Record an error as a Web Annotation (W3C OA) targeting the activity.
+
+    Message and code are placed directly on the annotation IRI (no blank node body)
+    so the canvas can display them without blank-node noise.
+    """
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
-    body = BNode()
 
     out.add((ann_iri, RDF.type,        OA.Annotation))
     out.add((ann_iri, OA.motivatedBy,  OA.assessing))
-    out.add((ann_iri, OA.hasBody,      body))
+    out.add((ann_iri, RDFS.label,      Literal(message, datatype=XSD.string)))
+    out.add((ann_iri, RDF.value,       Literal(message, datatype=XSD.string)))
 
     if activity is not None:
         out.add((ann_iri, OA.hasTarget,        activity))
         out.add((ann_iri, PROV.wasGeneratedBy, activity))
 
-    out.add((body, RDF.type,             OA.TextualBody))
-    out.add((body, RDF.value,            Literal(message, datatype=XSD.string)))
     if code is not None:
-        out.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
+        out.add((ann_iri, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
 
 
 # ---------------------------------------------------------------------------
