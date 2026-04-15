@@ -21,7 +21,7 @@
 
 spw: a owl:Ontology ;
     rdfs:label "Semantic Python Workflow Ontology"@en ;
-    rdfs:comment "Extends P-Plan and PROV-O for browser-based Python workflows"@en ;
+    rdfs:comment "Display and catalog metadata for browser-based Python workflows. Workflow scripts use only PROV-O, P-Plan, and domain vocabularies (QUDT, OA, etc.) — SPW properties are consumed exclusively by the host application for UI rendering and catalog discovery."@en ;
     dcterms:created "2026-01-30"^^xsd:date ;
     dcterms:license <https://spdx.org/licenses/MIT> ;
     owl:versionInfo "1.0.0" ;
@@ -54,6 +54,13 @@ spw:expectedType a owl:ObjectProperty ;
 ################################################################################
 # DATATYPE PROPERTIES - Semantic
 ################################################################################
+
+spw:order a owl:DatatypeProperty ;
+    rdfs:label "display order"@en ;
+    rdfs:comment "Integer rendering order for a variable within its step. Lower values appear first in the UI. Does not affect execution semantics — step sequencing is determined by P-Plan variable flow."@en ;
+    rdfs:domain p-plan:Variable ;
+    rdfs:range  xsd:integer ;
+    rdfs:isDefinedBy spw: .
 
 spw:required a owl:DatatypeProperty ;
     rdfs:label "required"@en ;

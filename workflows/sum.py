@@ -14,12 +14,12 @@ from rdflib import Graph, Namespace, URIRef, BNode, Literal
 from rdflib.namespace import RDF, RDFS, XSD
 
 # Standard vocabularies
-PROV   = Namespace("http://www.w3.org/ns/prov#")
-PPLAN  = Namespace("http://purl.org/net/p-plan#")
-QUDT   = Namespace("http://qudt.org/schema/qudt/")
-UNIT   = Namespace("http://qudt.org/vocab/unit/")
-OA     = Namespace("http://www.w3.org/ns/oa#")
-SPW    = Namespace("https://thhanke.github.io/PyodideSemanticWorkflow#")
+PROV    = Namespace("http://www.w3.org/ns/prov#")
+PPLAN   = Namespace("http://purl.org/net/p-plan#")
+QUDT    = Namespace("http://qudt.org/schema/qudt/")
+UNIT    = Namespace("http://qudt.org/vocab/unit/")
+OA      = Namespace("http://www.w3.org/ns/oa#")
+DCTERMS = Namespace("http://purl.org/dc/terms/")
 
 
 # ---------------------------------------------------------------------------
@@ -66,26 +66,26 @@ def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
 def _add_error(g: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
                execution_hash: str = "unknown") -> None:
-    """Record an error as a Web Annotation with a data-namespace IRI."""
+    """Record an error as a Web Annotation (W3C OA) targeting the activity."""
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
     body = BNode()
 
-    g.bind("prov", PROV)
-    g.bind("oa", OA)
-    g.bind("spw", SPW)
+    g.bind("oa",      OA)
+    g.bind("dcterms", DCTERMS)
+    g.bind("prov",    PROV)
 
-    g.add((ann_iri, RDF.type, OA.Annotation))
-    g.add((ann_iri, OA.motivatedBy, SPW.errorReporting))
-    g.add((ann_iri, OA.hasBody, body))
+    g.add((ann_iri, RDF.type,        OA.Annotation))
+    g.add((ann_iri, OA.motivatedBy,  OA.assessing))
+    g.add((ann_iri, OA.hasBody,      body))
 
     if activity is not None:
-        g.add((ann_iri, OA.hasTarget, activity))
+        g.add((ann_iri, OA.hasTarget,        activity))
         g.add((ann_iri, PROV.wasGeneratedBy, activity))
 
-    g.add((body, RDF.type, OA.TextualBody))
-    g.add((body, RDF.value, Literal(message, datatype=XSD.string)))
+    g.add((body, RDF.type,             OA.TextualBody))
+    g.add((body, RDF.value,            Literal(message, datatype=XSD.string)))
     if code is not None:
-        g.add((body, SPW.errorCode, Literal(code, datatype=XSD.string)))
+        g.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
 
 
 # ---------------------------------------------------------------------------
@@ -116,12 +116,12 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    data_ns=data_ns)
         return g.serialize(format="turtle")
 
-    g.bind("prov",   PROV)
-    g.bind("p-plan", PPLAN)
-    g.bind("qudt",   QUDT)
-    g.bind("unit",   UNIT)
-    g.bind("oa",     OA)
-    g.bind("spw",    SPW)
+    g.bind("prov",    PROV)
+    g.bind("p-plan",  PPLAN)
+    g.bind("qudt",    QUDT)
+    g.bind("unit",    UNIT)
+    g.bind("oa",      OA)
+    g.bind("dcterms", DCTERMS)
 
     activity = URIRef(activity_iri)
 

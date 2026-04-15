@@ -37,12 +37,13 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
 # Standard vocabularies
-PROV   = Namespace("http://www.w3.org/ns/prov#")
-PPLAN  = Namespace("http://purl.org/net/p-plan#")
-QUDT   = Namespace("http://qudt.org/schema/qudt/")
-UNIT   = Namespace("http://qudt.org/vocab/unit/")
-OA     = Namespace("http://www.w3.org/ns/oa#")
-SPW    = Namespace("https://thhanke.github.io/PyodideSemanticWorkflow#")
+PROV    = Namespace("http://www.w3.org/ns/prov#")
+PPLAN   = Namespace("http://purl.org/net/p-plan#")
+QUDT    = Namespace("http://qudt.org/schema/qudt/")
+UNIT    = Namespace("http://qudt.org/vocab/unit/")
+OA      = Namespace("http://www.w3.org/ns/oa#")
+DCTERMS = Namespace("http://purl.org/dc/terms/")
+SCHEMA  = Namespace("https://schema.org/")
 
 
 # ---------------------------------------------------------------------------
@@ -89,26 +90,26 @@ def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
 def _add_error(g: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
                execution_hash: str = "unknown") -> None:
-    """Record an error as a Web Annotation with a data-namespace IRI."""
+    """Record an error as a Web Annotation (W3C OA) targeting the activity."""
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
     body = BNode()
 
-    g.bind("prov", PROV)
-    g.bind("oa",   OA)
-    g.bind("spw",  SPW)
+    g.bind("oa",      OA)
+    g.bind("dcterms", DCTERMS)
+    g.bind("prov",    PROV)
 
-    g.add((ann_iri, RDF.type,           OA.Annotation))
-    g.add((ann_iri, OA.motivatedBy,     SPW.errorReporting))
-    g.add((ann_iri, OA.hasBody,         body))
+    g.add((ann_iri, RDF.type,        OA.Annotation))
+    g.add((ann_iri, OA.motivatedBy,  OA.assessing))
+    g.add((ann_iri, OA.hasBody,      body))
 
     if activity is not None:
         g.add((ann_iri, OA.hasTarget,        activity))
         g.add((ann_iri, PROV.wasGeneratedBy, activity))
 
-    g.add((body, RDF.type,  OA.TextualBody))
-    g.add((body, RDF.value, Literal(message, datatype=XSD.string)))
+    g.add((body, RDF.type,             OA.TextualBody))
+    g.add((body, RDF.value,            Literal(message, datatype=XSD.string)))
     if code is not None:
-        g.add((body, SPW.errorCode, Literal(code, datatype=XSD.string)))
+        g.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
 
 
 # ---------------------------------------------------------------------------
@@ -138,27 +139,22 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    code="PARSE_ERROR", data_ns=data_ns)
         return g.serialize(format="turtle")
 
-    g.bind("prov",   PROV)
-    g.bind("p-plan", PPLAN)
-    g.bind("qudt",   QUDT)
-    g.bind("unit",   UNIT)
-    g.bind("oa",     OA)
-    g.bind("spw",    SPW)
+    g.bind("prov",    PROV)
+    g.bind("p-plan",  PPLAN)
+    g.bind("qudt",    QUDT)
+    g.bind("unit",    UNIT)
+    g.bind("oa",      OA)
+    g.bind("dcterms", DCTERMS)
+    g.bind("schema",  SCHEMA)
 
     activity = URIRef(activity_iri)
-
-    # Ensure the activity is typed as p-plan:Activity in the output
     g.add((activity, RDF.type, PPLAN.Activity))
 
-    # Resolve template step, plan and output variable via p-plan links
     step    = g.value(activity, PPLAN.correspondsToStep)
     out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
 
-    # -----------------------------------------------------------------------
-    # Find the input collection
-    # Expected: one prov:Collection entity linked via prov:used that also
-    # carries p-plan:correspondsToVariable (run-level p-plan:Entity).
-    # -----------------------------------------------------------------------
+    # Find the input collection:
+    # one prov:Collection entity linked via prov:used that carries p-plan:correspondsToVariable
     input_collections = [
         entity for entity in g.objects(activity, PROV.used)
         if (entity, RDF.type, PROV.Collection) in g
@@ -180,8 +176,6 @@ def run(input_turtle: str, activity_iri: str) -> str:
         return g.serialize(format="turtle")
 
     collection = input_collections[0]
-
-    # Ensure the collection is typed as p-plan:Entity (it is a run-level entity)
     g.add((collection, RDF.type, PPLAN.Entity))
 
     members = list(g.objects(collection, PROV.hadMember))
@@ -193,9 +187,6 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    execution_hash=execution_hash)
         return g.serialize(format="turtle")
 
-    # -----------------------------------------------------------------------
-    # Extract numeric values and unit
-    # -----------------------------------------------------------------------
     values = []
     units  = set()
 
@@ -232,9 +223,6 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     unit_iri = next(iter(units)) if units else g.value(collection, QUDT.unit)
 
-    # -----------------------------------------------------------------------
-    # Calculate average
-    # -----------------------------------------------------------------------
     try:
         average = statistics.mean(values)
     except Exception as e:
@@ -243,37 +231,29 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    execution_hash=execution_hash)
         return g.serialize(format="turtle")
 
-    # -----------------------------------------------------------------------
-    # Build result entity in the data namespace
-    # -----------------------------------------------------------------------
     result_iri = create_output_iri(data_ns, "averageResult", execution_hash)
     cleanup_previous_result(g, result_iri)
 
-    # Types: domain type + prov:Entity + p-plan:Entity (run-level entity)
-    g.add((result_iri, RDF.type, QUDT.QuantityValue))
-    g.add((result_iri, RDF.type, PROV.Entity))
-    g.add((result_iri, RDF.type, PPLAN.Entity))
-
+    g.add((result_iri, RDF.type,          QUDT.QuantityValue))
+    g.add((result_iri, RDF.type,          PROV.Entity))
+    g.add((result_iri, RDF.type,          PPLAN.Entity))
     g.add((result_iri, RDFS.label,        Literal(f"Average of {len(values)} values")))
     g.add((result_iri, QUDT.numericValue, Literal(average, datatype=XSD.decimal)))
 
     if unit_iri:
         g.add((result_iri, QUDT.unit, unit_iri))
 
-    # Provenance links
     g.add((result_iri, PROV.wasGeneratedBy, activity))
-    g.add((result_iri, PROV.wasDerivedFrom, collection))   # coarse-grained
-    for member in members:                                  # fine-grained
+    g.add((result_iri, PROV.wasDerivedFrom, collection))
+    for member in members:
         g.add((result_iri, PROV.wasDerivedFrom, member))
 
-    # Link back to template variable (run ↔ template bridge)
     if out_var:
         g.add((result_iri, PPLAN.correspondsToVariable, out_var))
 
-    # Calculation metadata
-    g.add((result_iri, SPW.valueCount,        Literal(len(values), datatype=XSD.integer)))
-    g.add((result_iri, SPW.calculationMethod, Literal("arithmetic mean")))
-    g.add((result_iri, SPW.minValue,          Literal(min(values), datatype=XSD.decimal)))
-    g.add((result_iri, SPW.maxValue,          Literal(max(values), datatype=XSD.decimal)))
+    # Calculation metadata using Schema.org and Dublin Core
+    g.add((result_iri, DCTERMS.description, Literal("arithmetic mean")))
+    g.add((result_iri, SCHEMA.minValue,     Literal(min(values), datatype=XSD.decimal)))
+    g.add((result_iri, SCHEMA.maxValue,     Literal(max(values), datatype=XSD.decimal)))
 
     return g.serialize(format="turtle")
