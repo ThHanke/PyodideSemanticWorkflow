@@ -103,29 +103,39 @@ def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
     return len(triples)
 
 
-def _add_error(g: Graph, activity, message: str, code: str = None,
+def _new_output_graph() -> Graph:
+    """Create a fresh output graph with standard prefix bindings."""
+    out = Graph()
+    out.bind("prov",    PROV)
+    out.bind("p-plan",  PPLAN)
+    out.bind("qudt",    QUDT)
+    out.bind("unit",    UNIT)
+    out.bind("csvw",    CSVW)
+    out.bind("oa",      OA)
+    out.bind("dcterms", DCTERMS)
+    out.bind("schema",  SCHEMA)
+    return out
+
+
+def _add_error(out: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
                execution_hash: str = "unknown") -> None:
     """Record an error as a Web Annotation with a data-namespace IRI."""
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
     body = BNode()
 
-    g.bind("prov",    PROV)
-    g.bind("oa",      OA)
-    g.bind("dcterms", DCTERMS)
-
-    g.add((ann_iri, RDF.type,        OA.Annotation))
-    g.add((ann_iri, OA.motivatedBy,  OA.assessing))
-    g.add((ann_iri, OA.hasBody,      body))
+    out.add((ann_iri, RDF.type,        OA.Annotation))
+    out.add((ann_iri, OA.motivatedBy,  OA.assessing))
+    out.add((ann_iri, OA.hasBody,      body))
 
     if activity is not None:
-        g.add((ann_iri, OA.hasTarget,        activity))
-        g.add((ann_iri, PROV.wasGeneratedBy, activity))
+        out.add((ann_iri, OA.hasTarget,        activity))
+        out.add((ann_iri, PROV.wasGeneratedBy, activity))
 
-    g.add((body, RDF.type,  OA.TextualBody))
-    g.add((body, RDF.value, Literal(message, datatype=XSD.string)))
+    out.add((body, RDF.type,  OA.TextualBody))
+    out.add((body, RDF.value, Literal(message, datatype=XSD.string)))
     if code is not None:
-        g.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
+        out.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
 
 
 # ---------------------------------------------------------------------------
@@ -249,20 +259,11 @@ def run(input_turtle: str, activity_iri: str) -> str:
     try:
         g.parse(data=input_turtle, format="turtle")
     except Exception as e:
-        g = Graph()
-        _add_error(g, activity=None,
+        out = _new_output_graph()
+        _add_error(out, activity=None,
                    message=f"Failed to parse input graph: {e}",
                    code="PARSE_ERROR", data_ns=data_ns)
-        return g.serialize(format="turtle")
-
-    g.bind("prov",    PROV)
-    g.bind("p-plan",  PPLAN)
-    g.bind("qudt",    QUDT)
-    g.bind("unit",    UNIT)
-    g.bind("csvw",    CSVW)
-    g.bind("oa",      OA)
-    g.bind("dcterms", DCTERMS)
-    g.bind("schema",  SCHEMA)
+        return out.serialize(format="turtle")
 
     activity = URIRef(activity_iri)
 
@@ -277,13 +278,14 @@ def run(input_turtle: str, activity_iri: str) -> str:
     ]
 
     execution_hash = create_execution_hash(activity_iri, *[str(inp) for inp in inputs])
+    out = _new_output_graph()
 
     if len(inputs) < 2:
-        _add_error(g, activity,
+        _add_error(out, activity,
                    f"Expected 2 inputs (metadata URI, column name). Found {len(inputs)}.",
                    code="INPUT_TOO_FEW", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     # Identify which input is metadata URI and which is column name
     # by inspecting the template variable label
@@ -302,30 +304,30 @@ def run(input_turtle: str, activity_iri: str) -> str:
             column_name = str(value)
 
     if not metadata_uri or not column_name:
-        _add_error(g, activity,
+        _add_error(out, activity,
                    "Could not resolve metadata URI or column name from inputs. "
                    "Check that input variables have rdfs:label containing 'metadata'/'uri' "
                    "and 'column' respectively.",
                    code="MISSING_INPUT", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     # Load column from CSVW
     try:
         values, unit_uri, column_title = load_column_from_csvw(metadata_uri, column_name)
     except Exception as e:
-        _add_error(g, activity,
+        _add_error(out, activity,
                    f"Failed to load column from CSVW: {e}",
                    code="CSVW_LOAD_ERROR", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     if len(values) == 0:
-        _add_error(g, activity,
+        _add_error(out, activity,
                    f"Column '{column_name}' loaded but contains no values.",
                    code="EMPTY_COLUMN", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     # Build result IRI — derived from activityIri + P-Plan output variable local name,
     # matching the placeholder the app created during workflow instantiation.
@@ -333,41 +335,40 @@ def run(input_turtle: str, activity_iri: str) -> str:
         result_iri = activity_output_iri(activity_iri, out_var)
     else:
         result_iri = create_output_iri(data_ns, "columnData", execution_hash)
-    cleanup_previous_result(g, result_iri)
 
     # Types: prov:Collection + prov:Entity + p-plan:Entity (run-level)
-    g.add((result_iri, RDF.type, PROV.Collection))
-    g.add((result_iri, RDF.type, PROV.Entity))
-    g.add((result_iri, RDF.type, PPLAN.Entity))
-    g.add((result_iri, RDFS.label, Literal(f"Column data: {column_title}")))
-    g.add((result_iri, PROV.wasGeneratedBy, activity))
+    out.add((result_iri, RDF.type, PROV.Collection))
+    out.add((result_iri, RDF.type, PROV.Entity))
+    out.add((result_iri, RDF.type, PPLAN.Entity))
+    out.add((result_iri, RDFS.label, Literal(f"Column data: {column_title}")))
+    out.add((result_iri, PROV.wasGeneratedBy, activity))
     for inp in inputs:
-        g.add((result_iri, PROV.wasDerivedFrom, inp))
+        out.add((result_iri, PROV.wasDerivedFrom, inp))
 
     # Link to template output variable so downstream steps can find this collection
     if out_var:
-        g.add((result_iri, PPLAN.correspondsToVariable, out_var))
+        out.add((result_iri, PPLAN.correspondsToVariable, out_var))
 
     # Collection metadata — standard vocabularies only
     if unit_uri:
-        g.add((result_iri, QUDT.unit,            unit_uri))
-    g.add((result_iri, DCTERMS.source,           Literal(column_name)))   # source column name
-    g.add((result_iri, SCHEMA.numberOfItems,     Literal(len(values), datatype=XSD.integer)))
+        out.add((result_iri, QUDT.unit,            unit_uri))
+    out.add((result_iri, DCTERMS.source,           Literal(column_name)))   # source column name
+    out.add((result_iri, SCHEMA.numberOfItems,     Literal(len(values), datatype=XSD.integer)))
 
     # Create individual QuantityValues or plain entities for each row value
     for idx, value in enumerate(values):
         value_iri = create_output_iri(data_ns, f"value{idx}", execution_hash)
-        g.add((value_iri, RDF.type, PROV.Entity))
+        out.add((value_iri, RDF.type, PROV.Entity))
 
         if isinstance(value, float) and unit_uri:
-            g.add((value_iri, RDF.type,            QUDT.QuantityValue))
-            g.add((value_iri, QUDT.numericValue,   Literal(value, datatype=XSD.decimal)))
-            g.add((value_iri, QUDT.unit,           unit_uri))
+            out.add((value_iri, RDF.type,            QUDT.QuantityValue))
+            out.add((value_iri, QUDT.numericValue,   Literal(value, datatype=XSD.decimal)))
+            out.add((value_iri, QUDT.unit,           unit_uri))
         elif isinstance(value, float):
-            g.add((value_iri, RDF.value, Literal(value, datatype=XSD.decimal)))
+            out.add((value_iri, RDF.value, Literal(value, datatype=XSD.decimal)))
         else:
-            g.add((value_iri, RDF.value, Literal(str(value), datatype=XSD.string)))
+            out.add((value_iri, RDF.value, Literal(str(value), datatype=XSD.string)))
 
-        g.add((result_iri, PROV.hadMember, value_iri))
+        out.add((result_iri, PROV.hadMember, value_iri))
 
-    return g.serialize(format="turtle")
+    return out.serialize(format="turtle")

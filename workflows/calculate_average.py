@@ -104,29 +104,38 @@ def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
     return len(triples)
 
 
-def _add_error(g: Graph, activity, message: str, code: str = None,
+def _new_output_graph() -> Graph:
+    """Create a fresh output graph with standard prefix bindings."""
+    out = Graph()
+    out.bind("prov",    PROV)
+    out.bind("p-plan",  PPLAN)
+    out.bind("qudt",    QUDT)
+    out.bind("unit",    UNIT)
+    out.bind("oa",      OA)
+    out.bind("dcterms", DCTERMS)
+    out.bind("schema",  SCHEMA)
+    return out
+
+
+def _add_error(out: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
                execution_hash: str = "unknown") -> None:
     """Record an error as a Web Annotation (W3C OA) targeting the activity."""
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
     body = BNode()
 
-    g.bind("oa",      OA)
-    g.bind("dcterms", DCTERMS)
-    g.bind("prov",    PROV)
-
-    g.add((ann_iri, RDF.type,        OA.Annotation))
-    g.add((ann_iri, OA.motivatedBy,  OA.assessing))
-    g.add((ann_iri, OA.hasBody,      body))
+    out.add((ann_iri, RDF.type,        OA.Annotation))
+    out.add((ann_iri, OA.motivatedBy,  OA.assessing))
+    out.add((ann_iri, OA.hasBody,      body))
 
     if activity is not None:
-        g.add((ann_iri, OA.hasTarget,        activity))
-        g.add((ann_iri, PROV.wasGeneratedBy, activity))
+        out.add((ann_iri, OA.hasTarget,        activity))
+        out.add((ann_iri, PROV.wasGeneratedBy, activity))
 
-    g.add((body, RDF.type,             OA.TextualBody))
-    g.add((body, RDF.value,            Literal(message, datatype=XSD.string)))
+    out.add((body, RDF.type,             OA.TextualBody))
+    out.add((body, RDF.value,            Literal(message, datatype=XSD.string)))
     if code is not None:
-        g.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
+        out.add((body, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
 
 
 # ---------------------------------------------------------------------------
@@ -150,22 +159,13 @@ def run(input_turtle: str, activity_iri: str) -> str:
     try:
         g.parse(data=input_turtle, format="turtle")
     except Exception as e:
-        g = Graph()
-        _add_error(g, activity=None,
+        out = _new_output_graph()
+        _add_error(out, activity=None,
                    message=f"Failed to parse input graph: {e}",
                    code="PARSE_ERROR", data_ns=data_ns)
-        return g.serialize(format="turtle")
-
-    g.bind("prov",    PROV)
-    g.bind("p-plan",  PPLAN)
-    g.bind("qudt",    QUDT)
-    g.bind("unit",    UNIT)
-    g.bind("oa",      OA)
-    g.bind("dcterms", DCTERMS)
-    g.bind("schema",  SCHEMA)
+        return out.serialize(format="turtle")
 
     activity = URIRef(activity_iri)
-    g.add((activity, RDF.type, PPLAN.Activity))
 
     step    = g.value(activity, PPLAN.correspondsToStep)
     out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
@@ -180,29 +180,28 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     execution_hash = create_execution_hash(activity_iri,
                                            *[str(c) for c in input_collections])
+    out = _new_output_graph()
 
     if len(input_collections) < 1:
         _add_error(
-            g, activity,
+            out, activity,
             "Expected 1 prov:Collection input via prov:used + "
             "p-plan:correspondsToVariable. Found "
             f"{len(input_collections)}.",
             code="INPUT_TOO_FEW", data_ns=data_ns,
             execution_hash=execution_hash,
         )
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     collection = input_collections[0]
-    g.add((collection, RDF.type, PPLAN.Entity))
-
     members = list(g.objects(collection, PROV.hadMember))
 
     if len(members) == 0:
-        _add_error(g, activity,
+        _add_error(out, activity,
                    "Collection has no members (prov:hadMember).",
                    code="EMPTY_COLLECTION", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     values = []
     units  = set()
@@ -211,42 +210,42 @@ def run(input_turtle: str, activity_iri: str) -> str:
         num_value = g.value(member, QUDT.numericValue) or g.value(member, RDF.value)
 
         if num_value is None:
-            _add_error(g, activity,
+            _add_error(out, activity,
                        f"Member {member} has no qudt:numericValue or rdf:value.",
                        "MISSING_NUMERIC_VALUE", data_ns=data_ns,
                        execution_hash=execution_hash)
-            return g.serialize(format="turtle")
+            return out.serialize(format="turtle")
 
         try:
             values.append(float(num_value))
         except Exception:
-            _add_error(g, activity,
+            _add_error(out, activity,
                        f"Member {member} has non-numeric value {num_value}.",
                        "NON_NUMERIC_VALUE", data_ns=data_ns,
                        execution_hash=execution_hash)
-            return g.serialize(format="turtle")
+            return out.serialize(format="turtle")
 
         unit = g.value(member, QUDT.unit)
         if unit is not None:
             units.add(unit)
 
     if len(units) > 1:
-        _add_error(g, activity,
+        _add_error(out, activity,
                    "Collection members have different units: " +
                    ", ".join(str(u) for u in units),
                    code="UNIT_MISMATCH", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     unit_iri = next(iter(units)) if units else g.value(collection, QUDT.unit)
 
     try:
         average = statistics.mean(values)
     except Exception as e:
-        _add_error(g, activity, f"Failed to calculate mean: {e}",
+        _add_error(out, activity, f"Failed to calculate mean: {e}",
                    code="CALCULATION_ERROR", data_ns=data_ns,
                    execution_hash=execution_hash)
-        return g.serialize(format="turtle")
+        return out.serialize(format="turtle")
 
     # Build result IRI — derived from activityIri + P-Plan output variable local name,
     # matching the placeholder the app created during workflow instantiation.
@@ -254,28 +253,27 @@ def run(input_turtle: str, activity_iri: str) -> str:
         result_iri = activity_output_iri(activity_iri, out_var)
     else:
         result_iri = create_output_iri(data_ns, "averageResult", execution_hash)
-    cleanup_previous_result(g, result_iri)
 
-    g.add((result_iri, RDF.type,          QUDT.QuantityValue))
-    g.add((result_iri, RDF.type,          PROV.Entity))
-    g.add((result_iri, RDF.type,          PPLAN.Entity))
-    g.add((result_iri, RDFS.label,        Literal(f"Average of {len(values)} values")))
-    g.add((result_iri, QUDT.numericValue, Literal(average, datatype=XSD.decimal)))
+    out.add((result_iri, RDF.type,          QUDT.QuantityValue))
+    out.add((result_iri, RDF.type,          PROV.Entity))
+    out.add((result_iri, RDF.type,          PPLAN.Entity))
+    out.add((result_iri, RDFS.label,        Literal(f"Average of {len(values)} values")))
+    out.add((result_iri, QUDT.numericValue, Literal(average, datatype=XSD.decimal)))
 
     if unit_iri:
-        g.add((result_iri, QUDT.unit, unit_iri))
+        out.add((result_iri, QUDT.unit, unit_iri))
 
-    g.add((result_iri, PROV.wasGeneratedBy, activity))
-    g.add((result_iri, PROV.wasDerivedFrom, collection))
+    out.add((result_iri, PROV.wasGeneratedBy, activity))
+    out.add((result_iri, PROV.wasDerivedFrom, collection))
     for member in members:
-        g.add((result_iri, PROV.wasDerivedFrom, member))
+        out.add((result_iri, PROV.wasDerivedFrom, member))
 
     if out_var:
-        g.add((result_iri, PPLAN.correspondsToVariable, out_var))
+        out.add((result_iri, PPLAN.correspondsToVariable, out_var))
 
     # Calculation metadata using Schema.org and Dublin Core
-    g.add((result_iri, DCTERMS.description, Literal("arithmetic mean")))
-    g.add((result_iri, SCHEMA.minValue,     Literal(min(values), datatype=XSD.decimal)))
-    g.add((result_iri, SCHEMA.maxValue,     Literal(max(values), datatype=XSD.decimal)))
+    out.add((result_iri, DCTERMS.description, Literal("arithmetic mean")))
+    out.add((result_iri, SCHEMA.minValue,     Literal(min(values), datatype=XSD.decimal)))
+    out.add((result_iri, SCHEMA.maxValue,     Literal(max(values), datatype=XSD.decimal)))
 
-    return g.serialize(format="turtle")
+    return out.serialize(format="turtle")
