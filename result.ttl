@@ -8,7 +8,7 @@
 @prefix unit: <http://qudt.org/vocab/unit/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-spw:sumResult_4f185970e180dece a p-plan:Entity,
+spw:SumRun_1_SumOutput a p-plan:Entity,
         qudt:QuantityValue,
         prov:Entity ;
     rdfs:label "Sum of 2 values" ;
