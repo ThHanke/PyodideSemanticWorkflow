@@ -1,10 +1,11 @@
 """
-Load a column from CSVW (CSV on the Web) metadata.
+Load a column from CSVW (CSV on the Web) metadata already present in the graph.
 
-This workflow step loads a column from a CSV file described by CSVW metadata,
-extracting values along with their units if defined in the metadata.
+This workflow step queries the graph for csvw:TableGroup and csvw:Column entities
+(loaded from CSVW JSON-LD metadata), presents select dropdowns for the user to
+choose a data source and column, then fetches and parses the CSV data.
 
-Input:  URI of a CSVW metadata JSON file + column name string
+Input:  CSVW metadata must already be loaded in the graph as RDF triples.
 Output: prov:Collection of qudt:QuantityValues (if units present) or plain entities
 
 Follows the P-Plan + PROV-O two-level model:
@@ -27,12 +28,13 @@ Follows the P-Plan + PROV-O two-level model:
 """
 
 import hashlib
-import json
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import requests
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
+
+import spw_input
 
 # Standard vocabularies
 PROV  = Namespace("http://www.w3.org/ns/prov#")
@@ -43,6 +45,7 @@ OA      = Namespace("http://www.w3.org/ns/oa#")
 CSVW    = Namespace("http://www.w3.org/ns/csvw#")
 DCTERMS = Namespace("http://purl.org/dc/terms/")
 SCHEMA  = Namespace("https://schema.org/")
+DC      = Namespace("http://purl.org/dc/elements/1.1/")
 
 
 # ---------------------------------------------------------------------------
@@ -50,43 +53,28 @@ SCHEMA  = Namespace("https://schema.org/")
 # ---------------------------------------------------------------------------
 
 def data_ns_from_activity(activity_iri: str) -> str:
-    """Derive the data namespace from the activity IRI.
-
-    The activity IRI is already in the correct default namespace
-    (e.g. http://example.com/LoadRun_123), so strip the local name
-    to get the base namespace for all output IRIs.
-    """
     iri = str(activity_iri)
     idx = max(iri.rfind('#'), iri.rfind('/'))
     return iri[:idx + 1] if idx >= 0 else iri + '/'
 
 
 def create_execution_hash(activity_iri: str, *input_iris: str) -> str:
-    """Deterministic hash from activity IRI + input IRIs (order-independent)."""
     sorted_inputs = sorted(str(iri) for iri in input_iris)
     combined = str(activity_iri) + ''.join(sorted_inputs)
     return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:16]
 
 
 def local_name(iri) -> str:
-    """Extract the local name from an IRI (after the last # or /)."""
     s = str(iri)
     idx = max(s.rfind('#'), s.rfind('/'))
     return s[idx + 1:] if idx >= 0 else s
 
 
 def create_output_iri(data_ns: str, prefix: str, execution_hash: str) -> URIRef:
-    """Create a data-namespace IRI for an output entity (used for error annotations)."""
     return URIRef(f"{data_ns}{prefix}_{execution_hash}")
 
 
 def activity_output_iri(activity_iri: str, out_var) -> URIRef:
-    """Derive the output entity IRI from the activity IRI + P-Plan output variable.
-
-    Matches the IRI the app creates during instantiation:
-        activityIri + '_' + localname(outputVariable)
-    e.g. http://example.com/LoadRun_1234_LoadedColumnData
-    """
     return URIRef(f"{activity_iri}_{local_name(out_var)}")
 
 
@@ -95,7 +83,6 @@ def activity_output_iri(activity_iri: str, out_var) -> URIRef:
 # ---------------------------------------------------------------------------
 
 def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
-    """Remove all triples for a previous result entity (idempotent re-runs)."""
     triples = list(g.triples((result_iri, None, None))) + \
               list(g.triples((None, None, result_iri)))
     for t in triples:
@@ -104,7 +91,6 @@ def cleanup_previous_result(g: Graph, result_iri: URIRef) -> int:
 
 
 def _new_output_graph() -> Graph:
-    """Create a fresh output graph with standard prefix bindings."""
     out = Graph()
     out.bind("prov",    PROV)
     out.bind("p-plan",  PPLAN)
@@ -121,12 +107,6 @@ def _add_error(out: Graph, activity, message: str, code: str = None,
                data_ns: str = "http://example.com/",
                execution_hash: str = "unknown",
                target=None) -> None:
-    """Record an error as a Web Annotation with a data-namespace IRI.
-
-    oa:hasTarget  → the entity the error is about (defaults to activity).
-    prov:wasGeneratedBy → always the activity.
-    Message and code are placed directly on the annotation IRI (no blank node body).
-    """
     ann_iri = create_output_iri(data_ns, "errorAnn", execution_hash)
     effective_target = target if target is not None else activity
 
@@ -144,19 +124,7 @@ def _add_error(out: Graph, activity, message: str, code: str = None,
         out.add((ann_iri, DCTERMS.identifier, Literal(code, datatype=XSD.string)))
 
 
-# ---------------------------------------------------------------------------
-# CSVW loading
-# ---------------------------------------------------------------------------
-
-def parse_csvw_metadata(metadata_uri: str) -> Dict[str, Any]:
-    """Fetch and parse CSVW metadata from a URI."""
-    response = requests.get(metadata_uri)
-    response.raise_for_status()
-    return response.json()
-
-
 def map_csvw_unit_to_qudt(csvw_unit: Optional[str]) -> Optional[URIRef]:
-    """Map CSVW unit notation to QUDT unit URI."""
     if not csvw_unit:
         return None
     unit_map = {
@@ -180,168 +148,11 @@ def map_csvw_unit_to_qudt(csvw_unit: Optional[str]) -> Optional[URIRef]:
     return unit_map.get(csvw_unit.lower(), None)
 
 
-def load_column_from_csvw(
-    metadata_uri: str, column_name: str
-) -> tuple:
-    """
-    Load a column from a CSV file using CSVW metadata.
-
-    Returns:
-        (values, unit_uri, column_title, delimiter)
-    """
-    metadata = parse_csvw_metadata(metadata_uri)
-
-    tables = metadata.get("tables", [metadata])
-    table = tables[0] if isinstance(tables, list) else tables
-
-    csv_url = table.get("url")
-    if not csv_url:
-        raise ValueError("No CSV URL found in metadata")
-
-    if not csv_url.startswith("http"):
-        base_url = "/".join(metadata_uri.split("/")[:-1])
-        csv_url = f"{base_url}/{csv_url}"
-
-    # Detect delimiter from metadata (default comma)
-    dialect = table.get("dialect", {})
-    delimiter = dialect.get("delimiter", ",")
-
-    table_schema = table.get("tableSchema", {})
-    columns = table_schema.get("columns", [])
-
-    column_schema = None
-    column_index = None
-    for idx, col in enumerate(columns):
-        if col.get("name") == column_name or col.get("titles") == column_name:
-            column_schema = col
-            column_index = idx
-            break
-
-    if column_schema is None:
-        raise ValueError(f"Column '{column_name}' not found in metadata")
-
-    unit_str = column_schema.get("dc:unit") or column_schema.get("unit")
-    unit_uri = map_csvw_unit_to_qudt(unit_str)
-
-    column_title = column_schema.get("titles", column_name)
-    if isinstance(column_title, list):
-        column_title = column_title[0]
-
-    csv_response = requests.get(csv_url)
-    csv_response.raise_for_status()
-
-    lines = csv_response.text.strip().split("\n")
-    values = []
-    for line in lines[1:]:  # skip header
-        fields = line.split(delimiter)
-        if column_index < len(fields):
-            value_str = fields[column_index].strip().strip('"')
-            try:
-                values.append(float(value_str))
-            except ValueError:
-                values.append(value_str)
-
-    return values, unit_uri, column_title
-
-
-# ---------------------------------------------------------------------------
-# Dynamic input resolution
-# ---------------------------------------------------------------------------
-
-XSD_NS = "http://www.w3.org/2001/XMLSchema#"
-
-
-def _get_var_label(g: Graph, entity) -> str:
-    """Return the rdfs:label of the p-plan:Variable this entity corresponds to."""
-    var = g.value(entity, PPLAN.correspondsToVariable)
-    if var is None:
-        return ""
-    label = g.value(var, RDFS.label)
-    return str(label) if label is not None else ""
-
-
-def resolve_missing_literal_inputs(g: Graph, activity: URIRef) -> list:
-    """Prompt the user for any literal-typed inputs that lack rdf:value.
-
-    Discovers input entities via prov:used + p-plan:correspondsToVariable,
-    checks each for rdf:value, and if missing calls request_input() to get
-    the value from the user interactively.  Writes the user's response as
-    rdf:value on the entity so downstream code can read it normally.
-
-    Only prompts for XSD-typed (literal) inputs.  Entity-typed inputs are
-    left for a separate resolution function.
-
-    Entities are sorted so that "metadata"/"uri" variables are prompted
-    before "column" variables — the metadata URI determines available
-    columns, so it must be provided first.
-
-    Returns a list of error messages (empty list = all resolved OK).
-    """
-    # Collect input entities that correspond to a template variable
-    inputs = [
-        entity for entity in g.objects(activity, PROV.used)
-        if (entity, PPLAN.correspondsToVariable, None) in g
-    ]
-
-    # Sort: metadata/uri variables first, then alphabetical by label.
-    # The metadata URI determines available columns, so it must come first.
-    def _sort_key(entity):
-        label = _get_var_label(g, entity).lower()
-        if "metadata" in label or "uri" in label:
-            return (0, label)
-        return (1, label)
-
-    inputs.sort(key=_sort_key)
-
-    errors = []
-    for entity in inputs:
-        # Skip entities that already have a value
-        if g.value(entity, RDF.value) is not None:
-            continue
-
-        # Only handle literal (XSD) types here
-        entity_types = list(g.objects(entity, RDF.type))
-        is_xsd = any(str(t).startswith(XSD_NS) for t in entity_types)
-        if not is_xsd:
-            continue
-
-        var_label = _get_var_label(g, entity)
-        prompt_label = var_label if var_label else "value"
-
-        try:
-            value = request_input(f"Enter {prompt_label}:", 'text')  # noqa: F821 — injected at runtime
-        except Exception as exc:
-            errors.append(
-                f"Input prompt for '{prompt_label}' failed: {exc}"
-            )
-            continue
-
-        if not value or not str(value).strip():
-            errors.append(
-                f"No value provided for '{prompt_label}'."
-            )
-            continue
-
-        g.add((entity, RDF.value, Literal(str(value).strip())))
-
-    return errors
-
-
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 def run(input_turtle: str, activity_iri: str) -> str:
-    """
-    Main entry point called by Pyodide runtime.
-
-    Args:
-        input_turtle: Input graph in Turtle format
-        activity_iri: IRI of the prov:Activity being executed
-
-    Returns:
-        Output graph in Turtle format with loaded column data
-    """
     data_ns = data_ns_from_activity(activity_iri)
     g = Graph()
 
@@ -356,11 +167,9 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     activity = URIRef(activity_iri)
 
-    # Resolve template step and output variable
     step    = g.value(activity, PPLAN.correspondsToStep)
     out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
 
-    # Find input data entities (those with p-plan:correspondsToVariable, not code/requirements)
     inputs = [
         entity for entity in g.objects(activity, PROV.used)
         if (entity, PPLAN.correspondsToVariable, None) in g
@@ -368,69 +177,206 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     execution_hash = create_execution_hash(activity_iri, *[str(inp) for inp in inputs])
     out = _new_output_graph()
+    prov_triples = []
 
     if len(inputs) < 2:
         _add_error(out, activity,
-                   f"Expected 2 inputs (metadata URI, column name). Found {len(inputs)}.",
+                   f"Expected 2 inputs (metadata source, column name). Found {len(inputs)}.",
                    code="INPUT_TOO_FEW", data_ns=data_ns,
                    execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
-    # Prompt for any missing literal inputs (XSD-typed without rdf:value).
-    # This modifies g in place — writes rdf:value on filled entities so the
-    # resolution logic below can read them.
-    input_errors = resolve_missing_literal_inputs(g, activity)
-    if input_errors:
-        # Target the first input that still has no rdf:value
-        missing_inp = next(
-            (inp for inp in inputs if g.value(inp, RDF.value) is None),
-            None
-        )
-        _add_error(out, activity,
-                   "; ".join(input_errors),
-                   code="INPUT_PROMPT_FAILED", data_ns=data_ns,
-                   execution_hash=execution_hash, target=missing_inp)
-        return out.serialize(format="turtle")
-
-    # Identify which input is metadata URI and which is column name
-    # by inspecting the template variable label
-    metadata_uri = None
-    column_name = None
-
+    # Identify placeholder entities by variable label
+    metadata_placeholder = None
+    column_placeholder = None
     for inp in inputs:
         var = g.value(inp, PPLAN.correspondsToVariable)
         var_label = str(g.value(var, RDFS.label)).lower() if var else ""
-        value = g.value(inp, RDF.value)
-        if value is None:
-            continue
         if "metadata" in var_label or "uri" in var_label:
-            metadata_uri = str(value)
+            metadata_placeholder = inp
         elif "column" in var_label:
-            column_name = str(value)
+            column_placeholder = inp
 
-    if not metadata_uri or not column_name:
-        # Target the first input that has no rdf:value set
-        missing_inp = next(
-            (inp for inp in inputs if g.value(inp, RDF.value) is None),
-            None
-        )
+    # -----------------------------------------------------------------------
+    # Phase 1: Resolve TableGroup via graph query + select dropdown
+    # -----------------------------------------------------------------------
+    table_groups = list(g.subjects(RDF.type, CSVW.TableGroup))
+
+    if not table_groups:
         _add_error(out, activity,
-                   "Could not resolve metadata URI or column name from inputs. "
-                   "Check that input variables have rdfs:label containing 'metadata'/'uri' "
-                   "and 'column' respectively.",
-                   code="MISSING_INPUT", data_ns=data_ns,
-                   execution_hash=execution_hash, target=missing_inp)
+                   "No csvw:TableGroup found in graph. Load CSVW metadata first.",
+                   code="NO_TABLE_GROUPS", data_ns=data_ns,
+                   execution_hash=execution_hash, target=metadata_placeholder)
         return out.serialize(format="turtle")
 
-    # Load column from CSVW
-    try:
-        values, unit_uri, column_title = load_column_from_csvw(metadata_uri, column_name)
-    except Exception as e:
+    if len(table_groups) == 1:
+        selected_tg = table_groups[0]
+    else:
+        tg_options = []
+        for tg in table_groups:
+            label = g.value(tg, RDFS.label)
+            if label is None:
+                label = local_name(tg)
+            tg_options.append({'label': str(label), 'value': str(tg)})
+
+        try:
+            selected_tg_iri = spw_input.prompt_select("data source", tg_options)
+            selected_tg = URIRef(selected_tg_iri)
+        except spw_input.InputCancelled as exc:
+            _add_error(out, activity, str(exc),
+                       code="INPUT_CANCELLED", data_ns=data_ns,
+                       execution_hash=execution_hash, target=metadata_placeholder)
+            return out.serialize(format="turtle")
+        except spw_input.InputFailed as exc:
+            _add_error(out, activity, str(exc),
+                       code="INPUT_PROMPT_FAILED", data_ns=data_ns,
+                       execution_hash=execution_hash, target=metadata_placeholder)
+            return out.serialize(format="turtle")
+
+    # Write selected TableGroup IRI to metadata placeholder for downstream compatibility
+    if metadata_placeholder is not None:
+        g.add((metadata_placeholder, RDF.value, Literal(str(selected_tg))))
+
+    prov_triples.extend(
+        spw_input.make_provenance(activity, metadata_placeholder, selected_tg)
+        if metadata_placeholder else [(activity, PROV.used, selected_tg)]
+    )
+
+    # -----------------------------------------------------------------------
+    # Phase 2: Traverse TableGroup → table → schema → columns → select
+    # -----------------------------------------------------------------------
+    columns = []
+    tables = list(g.objects(selected_tg, CSVW.table))
+
+    for table in tables:
+        schema = g.value(table, CSVW.tableSchema)
+        if schema is None:
+            continue
+        for col in g.objects(schema, CSVW.column):
+            col_name = g.value(col, CSVW.name)
+            col_title = g.value(col, CSVW.title)
+            display = str(col_title) if col_title else (str(col_name) if col_name else local_name(col))
+            columns.append({
+                'column': col,
+                'name': str(col_name) if col_name else None,
+                'display': display,
+                'table': table,
+            })
+
+    if not columns:
         _add_error(out, activity,
-                   f"Failed to load column from CSVW: {e}",
-                   code="CSVW_LOAD_ERROR", data_ns=data_ns,
+                   "No csvw:Column found in selected data source. Check CSVW metadata structure.",
+                   code="NO_COLUMNS", data_ns=data_ns,
+                   execution_hash=execution_hash, target=column_placeholder)
+        return out.serialize(format="turtle")
+
+    if len(columns) == 1:
+        selected_col = columns[0]
+    else:
+        col_options = [
+            {'label': c['display'], 'value': str(i)}
+            for i, c in enumerate(columns)
+        ]
+
+        try:
+            selected_idx = spw_input.prompt_select("column", col_options)
+            selected_col = columns[int(selected_idx)]
+        except spw_input.InputCancelled as exc:
+            _add_error(out, activity, str(exc),
+                       code="INPUT_CANCELLED", data_ns=data_ns,
+                       execution_hash=execution_hash, target=column_placeholder)
+            return out.serialize(format="turtle")
+        except spw_input.InputFailed as exc:
+            _add_error(out, activity, str(exc),
+                       code="INPUT_PROMPT_FAILED", data_ns=data_ns,
+                       execution_hash=execution_hash, target=column_placeholder)
+            return out.serialize(format="turtle")
+
+    column_name = selected_col['name']
+    column_entity = selected_col['column']
+    table_entity = selected_col['table']
+
+    if not column_name:
+        _add_error(out, activity,
+                   "Selected column has no csvw:name. Cannot match CSV header.",
+                   code="NO_COLUMN_NAME", data_ns=data_ns,
+                   execution_hash=execution_hash, target=column_placeholder)
+        return out.serialize(format="turtle")
+
+    # Write selected column name to placeholder
+    if column_placeholder is not None:
+        g.add((column_placeholder, RDF.value, Literal(column_name)))
+
+    # -----------------------------------------------------------------------
+    # Derive CSV URL and unit from graph
+    # -----------------------------------------------------------------------
+    csv_url_node = g.value(table_entity, CSVW.url)
+    if csv_url_node is None:
+        _add_error(out, activity,
+                   "No csvw:url found on table. Cannot fetch CSV data.",
+                   code="NO_CSV_URL", data_ns=data_ns,
                    execution_hash=execution_hash)
         return out.serialize(format="turtle")
+    csv_url = str(csv_url_node)
+
+    # Try qudt:unit on column entity first, then dc:unit string for fallback mapping
+    unit_uri = None
+    qudt_unit = g.value(column_entity, QUDT.unit)
+    if qudt_unit is not None:
+        unit_uri = qudt_unit
+    else:
+        dc_unit = g.value(column_entity, DC.unit)
+        if dc_unit is not None:
+            unit_uri = map_csvw_unit_to_qudt(str(dc_unit))
+
+    # Detect delimiter from table dialect if present
+    dialect = g.value(table_entity, CSVW.dialect)
+    delimiter = ","
+    if dialect is not None:
+        delim_val = g.value(dialect, CSVW.delimiter)
+        if delim_val is not None:
+            delimiter = str(delim_val)
+
+    # -----------------------------------------------------------------------
+    # Fetch CSV and extract column
+    # -----------------------------------------------------------------------
+    try:
+        csv_response = requests.get(csv_url)
+        csv_response.raise_for_status()
+    except Exception as e:
+        _add_error(out, activity,
+                   f"Failed to fetch CSV data from {csv_url}: {e}",
+                   code="CSV_FETCH_ERROR", data_ns=data_ns,
+                   execution_hash=execution_hash)
+        return out.serialize(format="turtle")
+
+    lines = csv_response.text.strip().split("\n")
+    if len(lines) < 2:
+        _add_error(out, activity,
+                   "CSV file has no data rows.",
+                   code="EMPTY_CSV", data_ns=data_ns,
+                   execution_hash=execution_hash)
+        return out.serialize(format="turtle")
+
+    header = [h.strip().strip('"') for h in lines[0].split(delimiter)]
+    try:
+        column_index = header.index(column_name)
+    except ValueError:
+        _add_error(out, activity,
+                   f"Column '{column_name}' not found in CSV header: {header}",
+                   code="COLUMN_NOT_FOUND", data_ns=data_ns,
+                   execution_hash=execution_hash)
+        return out.serialize(format="turtle")
+
+    values = []
+    for line in lines[1:]:
+        fields = line.split(delimiter)
+        if column_index < len(fields):
+            value_str = fields[column_index].strip().strip('"')
+            try:
+                values.append(float(value_str))
+            except ValueError:
+                values.append(value_str)
 
     if len(values) == 0:
         _add_error(out, activity,
@@ -439,33 +385,34 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
-    # Build result IRI — derived from activityIri + P-Plan output variable local name,
-    # matching the placeholder the app created during workflow instantiation.
+    # -----------------------------------------------------------------------
+    # Build output collection
+    # -----------------------------------------------------------------------
     if out_var:
         result_iri = activity_output_iri(activity_iri, out_var)
     else:
         result_iri = create_output_iri(data_ns, "columnData", execution_hash)
 
-    # Types: prov:Collection + prov:Entity + p-plan:Entity (run-level)
     out.add((result_iri, RDF.type, PROV.Collection))
     out.add((result_iri, RDF.type, PROV.Entity))
     out.add((result_iri, RDF.type, PPLAN.Entity))
-    out.add((result_iri, RDFS.label, Literal(f"Column data: {column_title}")))
+    out.add((result_iri, RDFS.label, Literal(f"Column data: {selected_col['display']}")))
     out.add((result_iri, PROV.wasGeneratedBy, activity))
     for inp in inputs:
         out.add((result_iri, PROV.wasDerivedFrom, inp))
 
-    # Link to template output variable so downstream steps can find this collection
     if out_var:
         out.add((result_iri, PPLAN.correspondsToVariable, out_var))
 
-    # Collection metadata — standard vocabularies only
     if unit_uri:
-        out.add((result_iri, QUDT.unit,            unit_uri))
-    out.add((result_iri, DCTERMS.source,           Literal(column_name)))   # source column name
-    out.add((result_iri, SCHEMA.numberOfItems,     Literal(len(values), datatype=XSD.integer)))
+        out.add((result_iri, QUDT.unit, unit_uri))
+    out.add((result_iri, DCTERMS.source, Literal(column_name)))
+    out.add((result_iri, SCHEMA.numberOfItems, Literal(len(values), datatype=XSD.integer)))
 
-    # Create individual QuantityValues or plain entities for each row value
+    # Add provenance triples from input resolution
+    for s, p, o in prov_triples:
+        out.add((s, p, o))
+
     for idx, value in enumerate(values):
         value_iri = create_output_iri(data_ns, f"value{idx}", execution_hash)
         out.add((value_iri, RDF.type, PROV.Entity))
