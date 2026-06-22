@@ -245,6 +245,89 @@ def load_column_from_csvw(
 
 
 # ---------------------------------------------------------------------------
+# Dynamic input resolution
+# ---------------------------------------------------------------------------
+
+XSD_NS = "http://www.w3.org/2001/XMLSchema#"
+
+
+def _get_var_label(g: Graph, entity) -> str:
+    """Return the rdfs:label of the p-plan:Variable this entity corresponds to."""
+    var = g.value(entity, PPLAN.correspondsToVariable)
+    if var is None:
+        return ""
+    label = g.value(var, RDFS.label)
+    return str(label) if label is not None else ""
+
+
+def resolve_missing_literal_inputs(g: Graph, activity: URIRef) -> list:
+    """Prompt the user for any literal-typed inputs that lack rdf:value.
+
+    Discovers input entities via prov:used + p-plan:correspondsToVariable,
+    checks each for rdf:value, and if missing calls request_input() to get
+    the value from the user interactively.  Writes the user's response as
+    rdf:value on the entity so downstream code can read it normally.
+
+    Only prompts for XSD-typed (literal) inputs.  Entity-typed inputs are
+    left for a separate resolution function.
+
+    Entities are sorted so that "metadata"/"uri" variables are prompted
+    before "column" variables — the metadata URI determines available
+    columns, so it must be provided first.
+
+    Returns a list of error messages (empty list = all resolved OK).
+    """
+    # Collect input entities that correspond to a template variable
+    inputs = [
+        entity for entity in g.objects(activity, PROV.used)
+        if (entity, PPLAN.correspondsToVariable, None) in g
+    ]
+
+    # Sort: metadata/uri variables first, then alphabetical by label.
+    # The metadata URI determines available columns, so it must come first.
+    def _sort_key(entity):
+        label = _get_var_label(g, entity).lower()
+        if "metadata" in label or "uri" in label:
+            return (0, label)
+        return (1, label)
+
+    inputs.sort(key=_sort_key)
+
+    errors = []
+    for entity in inputs:
+        # Skip entities that already have a value
+        if g.value(entity, RDF.value) is not None:
+            continue
+
+        # Only handle literal (XSD) types here
+        entity_types = list(g.objects(entity, RDF.type))
+        is_xsd = any(str(t).startswith(XSD_NS) for t in entity_types)
+        if not is_xsd:
+            continue
+
+        var_label = _get_var_label(g, entity)
+        prompt_label = var_label if var_label else "value"
+
+        try:
+            value = request_input(f"Enter {prompt_label}:", 'text')  # noqa: F821 — injected at runtime
+        except Exception as exc:
+            errors.append(
+                f"Input prompt for '{prompt_label}' failed: {exc}"
+            )
+            continue
+
+        if not value or not str(value).strip():
+            errors.append(
+                f"No value provided for '{prompt_label}'."
+            )
+            continue
+
+        g.add((entity, RDF.value, Literal(str(value).strip())))
+
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -291,6 +374,22 @@ def run(input_turtle: str, activity_iri: str) -> str:
                    f"Expected 2 inputs (metadata URI, column name). Found {len(inputs)}.",
                    code="INPUT_TOO_FEW", data_ns=data_ns,
                    execution_hash=execution_hash)
+        return out.serialize(format="turtle")
+
+    # Prompt for any missing literal inputs (XSD-typed without rdf:value).
+    # This modifies g in place — writes rdf:value on filled entities so the
+    # resolution logic below can read them.
+    input_errors = resolve_missing_literal_inputs(g, activity)
+    if input_errors:
+        # Target the first input that still has no rdf:value
+        missing_inp = next(
+            (inp for inp in inputs if g.value(inp, RDF.value) is None),
+            None
+        )
+        _add_error(out, activity,
+                   "; ".join(input_errors),
+                   code="INPUT_PROMPT_FAILED", data_ns=data_ns,
+                   execution_hash=execution_hash, target=missing_inp)
         return out.serialize(format="turtle")
 
     # Identify which input is metadata URI and which is column name
