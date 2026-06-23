@@ -304,13 +304,35 @@ def run(input_turtle: str, activity_iri: str) -> str:
         if dc_unit is not None:
             unit_uri = map_csvw_unit_to_qudt(str(dc_unit))
 
-    # Detect delimiter from table dialect if present
+    # Read CSVW dialect properties
     dialect = g.value(table_entity, CSVW.dialect)
     delimiter = ","
+    skip_rows = 0
+    header_row_count = 1
+    encoding = "utf-8"
     if dialect is not None:
         delim_val = g.value(dialect, CSVW.delimiter)
         if delim_val is not None:
-            delimiter = str(delim_val)
+            raw = str(delim_val)
+            delimiter = raw.replace("\\t", "\t").replace("\\n", "\n")
+
+        skip_val = g.value(dialect, CSVW.skipRows)
+        if skip_val is not None:
+            try:
+                skip_rows = int(skip_val)
+            except (ValueError, TypeError):
+                pass
+
+        hrc_val = g.value(dialect, CSVW.headerRowCount)
+        if hrc_val is not None:
+            try:
+                header_row_count = int(hrc_val)
+            except (ValueError, TypeError):
+                pass
+
+        enc_val = g.value(dialect, CSVW.encoding)
+        if enc_val is not None:
+            encoding = str(enc_val)
 
     # -----------------------------------------------------------------------
     # Fetch CSV and extract column
@@ -318,6 +340,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
     try:
         csv_response = requests.get(csv_url)
         csv_response.raise_for_status()
+        csv_response.encoding = encoding
     except Exception as e:
         _add_error(out, activity,
                    f"Failed to fetch CSV data from {csv_url}: {e}",
@@ -326,14 +349,15 @@ def run(input_turtle: str, activity_iri: str) -> str:
         return out.serialize(format="turtle")
 
     lines = csv_response.text.strip().split("\n")
-    if len(lines) < 2:
+    data_lines = lines[skip_rows:]
+    if len(data_lines) < header_row_count + 1:
         _add_error(out, activity,
-                   "CSV file has no data rows.",
+                   "CSV file has no data rows after skipping header.",
                    code="EMPTY_CSV", data_ns=data_ns,
                    execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
-    header = [h.strip().strip('"') for h in lines[0].split(delimiter)]
+    header = [h.strip().strip('"') for h in data_lines[0].split(delimiter)]
     try:
         column_index = header.index(column_name)
     except ValueError:
@@ -344,7 +368,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
         return out.serialize(format="turtle")
 
     values = []
-    for line in lines[1:]:
+    for line in data_lines[header_row_count:]:
         fields = line.split(delimiter)
         if column_index < len(fields):
             value_str = fields[column_index].strip().strip('"')
