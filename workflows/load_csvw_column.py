@@ -304,6 +304,14 @@ def run(input_turtle: str, activity_iri: str) -> str:
         if dc_unit is not None:
             unit_uri = map_csvw_unit_to_qudt(str(dc_unit))
 
+    # Check for csvw:decimalChar on column datatype (German/European notation)
+    decimal_char = "."
+    datatype_node = g.value(column_entity, CSVW.datatype)
+    if datatype_node is not None:
+        dc_val = g.value(datatype_node, CSVW.decimalChar)
+        if dc_val is not None:
+            decimal_char = str(dc_val)
+
     # Read CSVW dialect properties
     dialect = g.value(table_entity, CSVW.dialect)
     delimiter = ","
@@ -375,6 +383,19 @@ def run(input_turtle: str, activity_iri: str) -> str:
             try:
                 values.append(float(value_str))
             except ValueError:
+                if decimal_char != "." and decimal_char in value_str:
+                    try:
+                        values.append(float(value_str.replace(decimal_char, ".")))
+                        continue
+                    except ValueError:
+                        pass
+                # Fallback: try comma→dot even without explicit decimalChar
+                if "," in value_str and "." not in value_str:
+                    try:
+                        values.append(float(value_str.replace(",", ".")))
+                        continue
+                    except ValueError:
+                        pass
                 values.append(value_str)
 
     if len(values) == 0:
