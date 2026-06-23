@@ -32,6 +32,7 @@ from typing import Optional
 
 import requests
 from rdflib import Graph, Literal, Namespace, URIRef
+from rdflib.collection import Collection as RDFList
 from rdflib.namespace import RDF, RDFS, XSD
 
 import spw_input
@@ -222,16 +223,24 @@ def run(input_turtle: str, activity_iri: str) -> str:
         schema = g.value(table, CSVW.tableSchema)
         if schema is None:
             continue
-        for col in g.objects(schema, CSVW.column):
-            col_name = g.value(col, CSVW.name)
-            col_title = g.value(col, CSVW.title)
-            display = str(col_title) if col_title else (str(col_name) if col_name else local_name(col))
-            columns.append({
-                'column': col,
-                'name': str(col_name) if col_name else None,
-                'display': display,
-                'table': table,
-            })
+        for col_or_list in g.objects(schema, CSVW.column):
+            # CSVW JSON-LD context uses @container:@list for columns,
+            # producing an RDF list (rdf:first/rdf:rest chain).
+            if (col_or_list, RDF.first, None) in g:
+                col_iter = RDFList(g, col_or_list)
+            else:
+                col_iter = [col_or_list]
+
+            for col in col_iter:
+                col_name = g.value(col, CSVW.name)
+                col_title = g.value(col, CSVW.title)
+                display = str(col_title) if col_title else (str(col_name) if col_name else local_name(col))
+                columns.append({
+                    'column': col,
+                    'name': str(col_name) if col_name else None,
+                    'display': display,
+                    'table': table,
+                })
 
     if not columns:
         _add_error(out, activity,
