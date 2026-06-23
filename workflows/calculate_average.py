@@ -1,30 +1,11 @@
 """
 Calculate the average of a collection of QUDT QuantityValues.
 
-Follows the P-Plan + PROV-O two-level model:
+Input collection is discovered at runtime by querying the graph for
+prov:Collection entities with prov:hadMember. If multiple collections
+exist, the user selects via an interactive prompt.
 
-  Template level (spw: namespace, stays in urn:vg:workflows):
-    spw:AverageStep  a p-plan:Step
-    spw:CollectionIn a p-plan:Variable  ; p-plan:isInputVarOf  spw:AverageStep
-    spw:AverageOut   a p-plan:Variable  ; p-plan:isOutputVarOf spw:AverageStep
-
-  Run level (default namespace, lives in urn:vg:data):
-    :AverageRun_123  a prov:Activity, p-plan:Activity
-        p-plan:correspondsToStep  spw:AverageStep
-        prov:hadPlan              spw:AveragePlan
-        prov:used                 :CollectionIn_123      (run entity for collection)
-        prov:used                 spw:AverageCode        (resource, template IRI ok)
-        prov:wasAssociatedWith    spw:PyodideEngine
-
-    :CollectionIn_123  a prov:Collection, prov:Entity, p-plan:Entity
-        p-plan:correspondsToVariable  spw:CollectionIn
-        prov:hadMember  ... (members added by user before execution)
-
-    :averageResult_abc  a qudt:QuantityValue, prov:Entity, p-plan:Entity
-        p-plan:correspondsToVariable  spw:AverageOut
-        prov:wasGeneratedBy           :AverageRun_123
-        prov:wasDerivedFrom           :CollectionIn_123
-                                      (+ individual members for fine-grained provenance)
+Output: Single QUDT QuantityValue with the arithmetic mean and shared unit.
 
 Input:  The full urn:vg:data graph as Turtle.
 Output: Turtle with new result triples to merge back into urn:vg:data.
@@ -35,6 +16,8 @@ import statistics
 
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
+
+import spw_input
 
 # Standard vocabularies
 PROV    = Namespace("http://www.w3.org/ns/prov#")
@@ -176,30 +159,44 @@ def run(input_turtle: str, activity_iri: str) -> str:
     step    = g.value(activity, PPLAN.correspondsToStep)
     out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
 
-    # Find the input collection:
-    # one prov:Collection entity linked via prov:used that carries p-plan:correspondsToVariable
-    input_collections = [
-        entity for entity in g.objects(activity, PROV.used)
-        if (entity, RDF.type, PROV.Collection) in g
-        and (entity, PPLAN.correspondsToVariable, None) in g
-    ]
+    # Discover prov:Collection entities in the graph
+    candidates = spw_input.find_candidates(g, activity, PROV.Collection, PROV.hadMember)
 
-    execution_hash = create_execution_hash(activity_iri,
-                                           *[str(c) for c in input_collections])
+    execution_hash = create_execution_hash(activity_iri)
     out = _new_output_graph()
 
-    if len(input_collections) < 1:
-        _add_error(
-            out, activity,
-            "Expected 1 prov:Collection input via prov:used + "
-            "p-plan:correspondsToVariable. Found "
-            f"{len(input_collections)}.",
-            code="INPUT_TOO_FEW", data_ns=data_ns,
-            execution_hash=execution_hash,
-        )
+    if not candidates:
+        _add_error(out, activity,
+                   "No prov:Collection found in graph. Run a data loading step first.",
+                   code="NO_COLLECTIONS", data_ns=data_ns,
+                   execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
-    collection = input_collections[0]
+    if len(candidates) == 1:
+        collection = candidates[0]
+    else:
+        options = []
+        for c in candidates:
+            label = g.value(c, RDFS.label)
+            if label is None:
+                label = local_name(c)
+            options.append({'label': str(label), 'value': str(c)})
+
+        try:
+            selected_iri = spw_input.prompt_select("collection", options)
+            collection = URIRef(selected_iri)
+        except spw_input.InputCancelled as exc:
+            _add_error(out, activity, str(exc),
+                       code="INPUT_CANCELLED", data_ns=data_ns,
+                       execution_hash=execution_hash)
+            return out.serialize(format="turtle")
+        except spw_input.InputFailed as exc:
+            _add_error(out, activity, str(exc),
+                       code="INPUT_PROMPT_FAILED", data_ns=data_ns,
+                       execution_hash=execution_hash)
+            return out.serialize(format="turtle")
+
+    out.add((activity, PROV.used, collection))
     members = list(g.objects(collection, PROV.hadMember))
 
     if len(members) == 0:

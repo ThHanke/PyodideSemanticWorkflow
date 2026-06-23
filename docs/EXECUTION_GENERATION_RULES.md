@@ -75,38 +75,52 @@ spw:SumRun_1 prov:used spw:SumCode, spw:SumRequirements .
 
 ---
 
-### Rule 3: Add Concrete Input Data
+### Rule 3: Input Variable Documentation (Template Level)
 
-**Input:** User-provided data + template variables
-**Output:** Concrete entities with `prov:used` links
+Input variables declared in `catalog.ttl` serve as **documentation** — they describe what types of entities a step expects. At runtime, scripts discover their inputs dynamically (see Rule 3b below).
 
 ```sparql
-# Template Query: What inputs are required?
-SELECT ?var WHERE {
+# Template Query: What inputs does this step document?
+SELECT ?var ?expectedType WHERE {
     ?var p-plan:isInputVarOf spw:SumStep .
+    OPTIONAL { ?var spw:expectedType ?expectedType }
 }
-# Returns: spw:SumInput1, spw:SumInput2
+# Returns: spw:SumInput1 (qudt:QuantityValue), spw:SumInput2 (qudt:QuantityValue)
+```
 
-# For each required variable, user must provide concrete data:
-?concreteData a qudt:QuantityValue, prov:Entity ;
-    p-plan:correspondsToVariable ?var ;     # Links back to template
-    qudt:numericValue ?value ;
-    qudt:unit ?unit .
+These declarations are informational — the instantiator does NOT create placeholder entities for them.
 
-# Activity uses the concrete data:
-?newActivity prov:used ?concreteData .
+---
+
+### Rule 3b: Runtime Input Discovery
+
+**Input:** The full execution graph
+**Output:** `prov:used` links from activity to discovered entities
+
+At execution time, each Python script discovers its own inputs:
+
+1. Query the graph for entities of the expected type (e.g., `qudt:QuantityValue`, `prov:Collection`)
+2. Filter out the activity's own outputs and placeholder entities
+3. If one candidate exists → auto-select
+4. If multiple exist → prompt user via select dropdown
+5. Record `prov:used` from activity to each selected entity
+
+```python
+# Runtime discovery pattern (used by all scripts):
+candidates = spw_input.find_candidates(g, activity, QUDT.QuantityValue, QUDT.numericValue)
+# If multiple: selected_iri = spw_input.prompt_select("value", options)
+# Record: out.add((activity, PROV.used, selected_entity))
 ```
 
 **Example:**
 ```turtle
-# User provides:
-spw:inputLength1 a qudt:QuantityValue, prov:Entity ;
+# Entities already in graph (from prior workflow steps):
+<#value0_abc> a qudt:QuantityValue ;
     qudt:numericValue "2.0"^^xsd:decimal ;
-    qudt:unit unit:MilliM ;
-    p-plan:correspondsToVariable spw:SumInput1 .  # Maps to template
+    qudt:unit unit:MilliM .
 
-# Generates:
-spw:SumRun_1 prov:used spw:inputLength1 .
+# Script discovers and selects → generates:
+spw:SumRun_1 prov:used <#value0_abc> .
 ```
 
 ---
@@ -197,15 +211,10 @@ def generate_activity_from_template(plan_uri, step_uri, user_inputs, execution_i
     for resource in template_graph.objects(step_uri, PROV.used):
         g.add((activity, PROV.used, resource))
     
-    # 3. Add concrete input data (Rule 3)
-    for var_uri, concrete_data in user_inputs.items():
-        data_uri = URIRef(f"input_{execution_id}_{var_uri.fragment}")
-        g.add((data_uri, RDF.type, QUDT.QuantityValue))
-        g.add((data_uri, RDF.type, PROV.Entity))
-        g.add((data_uri, P_PLAN.correspondsToVariable, var_uri))
-        g.add((data_uri, QUDT.numericValue, concrete_data['value']))
-        g.add((data_uri, QUDT.unit, concrete_data['unit']))
-        g.add((activity, PROV.used, data_uri))
+    # 3. Inputs are discovered at runtime by the script (Rule 3b)
+    # The script queries the graph for entities of the expected type,
+    # prompts the user if multiple candidates exist, and records
+    # prov:used links from the activity to the selected entities.
     
     # 4. Associate with agent (Rule 4)
     agent = template_graph.value(step_uri, PROV.wasAssociatedWith)
@@ -378,18 +387,20 @@ spw:result_001 a qudt:QuantityValue, prov:Entity ;
 ```
 Activity.prov:used = 
     Step.prov:used                    // Inherit Step resources
-    + ConcreteData.correspondsTo(     // Plus user-provided OR intermediate data
-        Variable.isInputVarOf(Step)   //   for each input variable
+    + RuntimeDiscovered(              // Plus entities discovered at runtime
+        graph query by type           //   script queries graph for candidates
+        + user selection              //   user selects from available entities
       )
 ```
 
 **In words:** 
 - The Activity uses everything the Step uses (code, dependencies)
-- PLUS the concrete data that corresponds to the Step's input variables
-  - If the variable is ALSO an output of another step: use intermediate data
-  - If the variable is ONLY an input: user provides concrete data
+- PLUS entities discovered at runtime by the script
+  - The script queries the graph for entities of its expected input type
+  - If multiple candidates exist, the user selects via prompt
+  - Selected entities get `prov:used` links recorded by the script
 
-This is why we put `prov:used` on the Step in `catalog.ttl` - it declares what gets inherited by all Activities executing that Step!
+Input variables in `catalog.ttl` are documentation — they describe what the step expects, but scripts discover inputs dynamically.
 
 ### Multi-Step Data Flow
 

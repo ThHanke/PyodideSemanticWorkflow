@@ -115,7 +115,7 @@ The catalog currently includes:
 
 ### 1. **Sum QUDT Quantities**
 Sums two or more QUDT QuantityValue instances with compatible units.
-- **Inputs:** 2+ QuantityValues (same unit)
+- **Inputs:** Discovered at runtime from QuantityValues in graph; user selects 2+ via prompts
 - **Output:** Sum as QuantityValue
 - **Category:** Mathematics
 
@@ -134,11 +134,11 @@ Converts a QuantityValue to a different compatible unit.
 ### 4. **CSVW Column Average** (Two-Step Workflow)
 Demonstrates multi-step workflow composition by loading a column from CSVW metadata and calculating its average.
 - **Step 1 - Load Column:**
-  - **Inputs:** CSVW Metadata URI, Column Name
+  - **Inputs:** Discovered at runtime — queries graph for `csvw:TableGroup` and `csvw:Column` entities, prompts user to select
   - **Output:** Collection of values with units
   - **Requirements:** rdflib, requests
 - **Step 2 - Calculate Average:**
-  - **Input:** Collection from Step 1
+  - **Input:** Discovered at runtime from `prov:Collection` entities in graph (typically produced by Step 1)
   - **Output:** Average as QuantityValue with unit
   - **Requirements:** rdflib
 - **Category:** Data Processing
@@ -254,12 +254,14 @@ spw:SumRun_1 prov:used spw:SumCode, spw:SumRequirements .
 
 **This is why we put `prov:used` on the Step** - it declares what gets inherited by all Activities executing that Step!
 
-### Rule 3: Add Concrete Data
-User provides concrete data linked to template variables:
-```turtle
-spw:inputLength1 p-plan:correspondsToVariable spw:SumInput1 .
-spw:SumRun_1 prov:used spw:inputLength1 .
-```
+### Rule 3: Runtime Input Discovery
+Scripts discover their inputs by querying the graph at runtime. Input variables declared in `catalog.ttl` serve as documentation only — scripts do not depend on pre-connected `prov:used` entities.
+
+At execution time, each script:
+1. Queries the graph for entities of its expected input type (e.g., `qudt:QuantityValue`, `prov:Collection`)
+2. If one candidate exists, auto-selects it
+3. If multiple exist, prompts the user via a select dropdown
+4. Records `prov:used` from the activity to each selected entity
 
 ### Rule 4: Associate with Agent
 Inherit agent from Step:
@@ -279,16 +281,16 @@ Results link back to template variables:
 ```text
 Activity.prov:used = 
     Step.prov:used                    // Inherit: Code, Requirements
-    + ConcreteData.correspondsTo(     // Plus user data
-        Variable.isInputVarOf(Step)   //   for input variables
+    + RuntimeDiscovered(              // Plus entities discovered at runtime
+        graph query by type           //   script queries graph for candidates
+        + user selection              //   user selects from available entities
       )
 ```
 
 **Example:** When executing `spw:SumStep`, the Activity uses:
 - `spw:SumCode` (inherited from Step)
 - `spw:SumRequirements` (inherited from Step)  
-- `spw:inputLength1` (user-provided data for `spw:SumInput1`)
-- `spw:inputLength2` (user-provided data for `spw:SumInput2`)
+- Selected `qudt:QuantityValue` entities (discovered from graph, user-prompted)
 
 **Complete working example:** See `sum_semantic_graph.ttl` for the full template + execution in one file.
 

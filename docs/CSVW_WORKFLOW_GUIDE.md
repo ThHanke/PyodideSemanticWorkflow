@@ -38,40 +38,25 @@ spw:CalculateAverageStep a p-plan:Step ;
     prov:used spw:CalculateAverageCode, spw:CalculateAverageRequirements .
 ```
 
-### Variables
+### Variables (Documentation Only)
 
-**Step 1 Inputs:**
-- `spw:CSVWMetadataURI` - URI of the CSVW metadata JSON file
-- `spw:CSVWColumnName` - Name of the column to load
+Input variables in `catalog.ttl` document what each step expects. At runtime, scripts discover their inputs by querying the graph.
 
-**Step 1 Output:**
-- `spw:LoadedColumnData` - Collection of values from the column
+**Step 1 (Load Column):**
+- Discovers `csvw:TableGroup` and `csvw:Column` entities from CSVW metadata already loaded in the graph
+- Output: `spw:LoadedColumnData` - Collection of values from the column
 
-**Step 2 Input:**
-- `spw:AverageInputCollection` - Collection (from Step 1)
-
-**Step 2 Output:**
-- `spw:AverageOutput` - Average as QUDT QuantityValue
+**Step 2 (Calculate Average):**
+- Discovers `prov:Collection` entities in the graph (typically produced by Step 1)
+- Output: `spw:AverageOutput` - Average as QUDT QuantityValue
 
 ## Generating Activity Instances
 
 ### Step 1: Load Column from CSVW
 
-#### 1. Create Input Entities
+#### 1. Prerequisites
 
-```turtle
-# Metadata URI input
-spw:metadataURIInput_20260202_001 a prov:Entity ;
-    rdf:value "https://example.com/data-metadata.json"^^xsd:anyURI ;
-    p-plan:correspondsToVariable spw:CSVWMetadataURI ;
-    rdfs:label "CSVW Metadata URI"@en .
-
-# Column name input
-spw:columnNameInput_20260202_001 a prov:Entity ;
-    rdf:value "temperature"^^xsd:string ;
-    p-plan:correspondsToVariable spw:CSVWColumnName ;
-    rdfs:label "Column name"@en .
-```
+CSVW metadata must already be loaded in the graph as RDF triples (e.g., via JSON-LD import). The script discovers `csvw:TableGroup` and `csvw:Column` entities at runtime — no pre-connected input entities are needed.
 
 #### 2. Create Activity
 
@@ -84,17 +69,13 @@ spw:LoadColumnRun_20260202_001 a prov:Activity ;
     # Inherited resources from Step
     prov:used spw:LoadCSVWColumnCode, spw:LoadCSVWColumnRequirements ;
     
-    # Concrete input data
-    prov:used spw:metadataURIInput_20260202_001, spw:columnNameInput_20260202_001 ;
-    
     # Agent and timing
     prov:wasAssociatedWith spw:PyodideEngine ;
     prov:startedAtTime "2026-02-02T11:00:00Z"^^xsd:dateTime ;
     prov:endedAtTime "2026-02-02T11:00:02Z"^^xsd:dateTime .
 
-# BFO-style input links (for Python script)
-spw:metadataURIInput_20260202_001 bfo:is_input_of spw:LoadColumnRun_20260202_001 .
-spw:columnNameInput_20260202_001 bfo:is_input_of spw:LoadColumnRun_20260202_001 .
+# The script discovers csvw:TableGroup and csvw:Column from the graph
+# and records prov:used links to the selected entities at runtime.
 ```
 
 #### 3. Generate Output (Executed by Python)
@@ -266,12 +247,17 @@ Both scripts use Web Annotations for errors:
 
 **Step 1:**
 - `PARSE_ERROR` - Failed to parse input graph
-- `INPUT_TOO_FEW` - Missing required inputs
-- `MISSING_INPUT` - Could not determine metadata URI or column name
-- `CSVW_LOAD_ERROR` - Failed to load from CSVW
+- `NO_TABLE_GROUPS` - No csvw:TableGroup found in graph
+- `NO_COLUMNS` - No csvw:Column found in selected data source
+- `NO_COLUMN_NAME` - Selected column has no csvw:name
+- `INPUT_CANCELLED` - User cancelled selection
+- `INPUT_PROMPT_FAILED` - Selection prompt failed
+- `CSV_FETCH_ERROR` - Failed to fetch CSV data
 
 **Step 2:**
-- `INPUT_TOO_FEW` - No collection provided
+- `NO_COLLECTIONS` - No prov:Collection found in graph
+- `INPUT_CANCELLED` - User cancelled selection
+- `INPUT_PROMPT_FAILED` - Selection prompt failed
 - `EMPTY_COLLECTION` - Collection has no members
 - `MISSING_NUMERIC_VALUE` - Member missing value
 - `NON_NUMERIC_VALUE` - Value not numeric

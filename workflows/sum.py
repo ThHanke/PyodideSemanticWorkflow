@@ -1,9 +1,9 @@
 """
 Sum two or more QUDT QuantityValues.
 
-Input entities are discovered via prov:used on the activity, filtered to those
-that also carry p-plan:correspondsToVariable (i.e. are run-level p-plan:Entity
-instances for input variables).
+Input entities are discovered at runtime by querying the graph for
+qudt:QuantityValue instances with qudt:numericValue. The user selects
+which values to sum via interactive prompts.
 
 Output: Single QUDT QuantityValue with the sum and shared unit.
 """
@@ -122,75 +122,6 @@ def _add_error(out: Graph, activity, message: str, code: str = None,
 
 
 # ---------------------------------------------------------------------------
-# Dynamic input resolution (delegates to spw_input shared library)
-# ---------------------------------------------------------------------------
-
-def resolve_missing_entity_inputs(g: Graph, activity: URIRef) -> tuple:
-    """Prompt user for QuantityValue inputs that lack qudt:numericValue.
-
-    Returns (errors, output_triples).
-    """
-    inputs = [
-        entity for entity in g.objects(activity, PROV.used)
-        if (entity, PPLAN.correspondsToVariable, None) in g
-        and (entity, RDF.type, QUDT.QuantityValue) in g
-    ]
-
-    errors = []
-    output_triples = []
-
-    for entity in inputs:
-        if g.value(entity, QUDT.numericValue) is not None:
-            continue
-
-        candidates = spw_input.find_candidates(g, activity, QUDT.QuantityValue, QUDT.numericValue)
-
-        if not candidates:
-            errors.append(
-                "No QuantityValue instances found in graph. Load data first."
-            )
-            return errors, output_triples
-
-        options = []
-        for qv in candidates:
-            rdfs_label = g.value(qv, RDFS.label)
-            num_val = g.value(qv, QUDT.numericValue)
-            unit = g.value(qv, QUDT.unit)
-            unit_label = g.value(unit, RDFS.label) if unit else None
-            if unit_label is None and unit is not None:
-                unit_label = local_name(unit)
-
-            display = str(rdfs_label) if rdfs_label else local_name(qv)
-            if num_val is not None:
-                unit_str = f" {unit_label}" if unit_label else ""
-                display = f"{display} ({num_val}{unit_str})"
-
-            options.append({'label': display, 'value': str(qv)})
-
-        var_label = spw_input.get_var_label(g, entity)
-        prompt_label = var_label if var_label else "QuantityValue"
-
-        try:
-            selected_iri = spw_input.prompt_select(prompt_label, options)
-        except spw_input.InputCancelled as exc:
-            errors.append(str(exc))
-            continue
-        except spw_input.InputFailed as exc:
-            errors.append(str(exc))
-            continue
-
-        selected = URIRef(selected_iri)
-
-        spw_input.copy_properties(g, selected, entity, [QUDT.numericValue, QUDT.unit])
-
-        output_triples.extend(
-            spw_input.make_provenance(activity, entity, selected)
-        )
-
-    return errors, output_triples
-
-
-# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -220,44 +151,78 @@ def run(input_turtle: str, activity_iri: str) -> str:
 
     activity = URIRef(activity_iri)
 
-    # Find input entities: things the activity prov:used that are p-plan:Entity
-    # instances (i.e. carry p-plan:correspondsToVariable)
-    inputs = [
-        entity for entity in g.objects(activity, PROV.used)
-        if (entity, PPLAN.correspondsToVariable, None) in g
-        and (entity, RDF.type, QUDT.QuantityValue) in g
-    ]
+    # Discover qudt:QuantityValue entities in the graph
+    candidates = spw_input.find_candidates(g, activity, QUDT.QuantityValue, QUDT.numericValue)
 
-    execution_hash = create_execution_hash(activity_iri, *[str(qv) for qv in inputs])
+    execution_hash = create_execution_hash(activity_iri)
     out = _new_output_graph()
 
-    if len(inputs) < 2:
+    if len(candidates) < 2:
         _add_error(out, activity,
-                   f"Expected at least 2 qudt:QuantityValue inputs linked via "
-                   f"prov:used + p-plan:correspondsToVariable. Found {len(inputs)}.",
-                   code="INPUT_TOO_FEW",
-                   data_ns=data_ns,
+                   f"Need at least 2 qudt:QuantityValue entities in graph. Found {len(candidates)}.",
+                   code="INPUT_TOO_FEW", data_ns=data_ns,
                    execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
-    # Prompt for any missing entity inputs (QuantityValue without numericValue).
-    # This modifies g in place — copies numericValue/unit from selected entities
-    # to placeholders so the value extraction loop below reads them normally.
-    input_errors, prov_triples = resolve_missing_entity_inputs(g, activity)
-    if input_errors:
-        missing_inp = next(
-            (inp for inp in inputs if g.value(inp, QUDT.numericValue) is None),
-            None
-        )
-        _add_error(out, activity,
-                   "; ".join(input_errors),
-                   code="INPUT_PROMPT_FAILED", data_ns=data_ns,
-                   execution_hash=execution_hash, target=missing_inp)
+    def _build_options(qv_list):
+        opts = []
+        for qv in qv_list:
+            rdfs_label = g.value(qv, RDFS.label)
+            num_val = g.value(qv, QUDT.numericValue)
+            unit = g.value(qv, QUDT.unit)
+            unit_label = g.value(unit, RDFS.label) if unit else None
+            if unit_label is None and unit is not None:
+                unit_label = local_name(unit)
+            display = str(rdfs_label) if rdfs_label else local_name(qv)
+            if num_val is not None:
+                unit_str = f" {unit_label}" if unit_label else ""
+                display = f"{display} ({num_val}{unit_str})"
+            opts.append({'label': display, 'value': str(qv)})
+        return opts
+
+    inputs = []
+    remaining = list(candidates)
+
+    # Select first value
+    options = _build_options(remaining)
+    try:
+        sel_iri = spw_input.prompt_select("first value", options)
+        sel = URIRef(sel_iri)
+        inputs.append(sel)
+        remaining.remove(sel)
+    except (spw_input.InputCancelled, spw_input.InputFailed) as exc:
+        _add_error(out, activity, str(exc),
+                   code="INPUT_CANCELLED", data_ns=data_ns,
+                   execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
-    # Add provenance triples from input resolution to output graph
-    for s, p, o in prov_triples:
-        out.add((s, p, o))
+    # Select second value
+    options = _build_options(remaining)
+    try:
+        sel_iri = spw_input.prompt_select("second value", options)
+        sel = URIRef(sel_iri)
+        inputs.append(sel)
+        remaining.remove(sel)
+    except (spw_input.InputCancelled, spw_input.InputFailed) as exc:
+        _add_error(out, activity, str(exc),
+                   code="INPUT_CANCELLED", data_ns=data_ns,
+                   execution_hash=execution_hash)
+        return out.serialize(format="turtle")
+
+    # Offer additional values until cancelled or no more candidates
+    while remaining:
+        options = _build_options(remaining)
+        try:
+            sel_iri = spw_input.prompt_select("add another value (cancel to finish)", options)
+            sel = URIRef(sel_iri)
+            inputs.append(sel)
+            remaining.remove(sel)
+        except (spw_input.InputCancelled, spw_input.InputFailed):
+            break
+
+    # Record prov:used for each selected input
+    for qv in inputs:
+        out.add((activity, PROV.used, qv))
 
     values = []
     units = set()
