@@ -170,32 +170,9 @@ def run(input_turtle: str, activity_iri: str) -> str:
     step    = g.value(activity, PPLAN.correspondsToStep)
     out_var = g.value(predicate=PPLAN.isOutputVarOf, object=step) if step else None
 
-    inputs = [
-        entity for entity in g.objects(activity, PROV.used)
-        if (entity, PPLAN.correspondsToVariable, None) in g
-    ]
-
-    execution_hash = create_execution_hash(activity_iri, *[str(inp) for inp in inputs])
+    execution_hash = create_execution_hash(activity_iri)
     out = _new_output_graph()
     prov_triples = []
-
-    if len(inputs) < 2:
-        _add_error(out, activity,
-                   f"Expected 2 inputs (metadata source, column name). Found {len(inputs)}.",
-                   code="INPUT_TOO_FEW", data_ns=data_ns,
-                   execution_hash=execution_hash)
-        return out.serialize(format="turtle")
-
-    # Identify placeholder entities by variable label
-    metadata_placeholder = None
-    column_placeholder = None
-    for inp in inputs:
-        var = g.value(inp, PPLAN.correspondsToVariable)
-        var_label = str(g.value(var, RDFS.label)).lower() if var else ""
-        if "metadata" in var_label or "uri" in var_label:
-            metadata_placeholder = inp
-        elif "column" in var_label:
-            column_placeholder = inp
 
     # -----------------------------------------------------------------------
     # Phase 1: Resolve TableGroup via graph query + select dropdown
@@ -206,7 +183,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
         _add_error(out, activity,
                    "No csvw:TableGroup found in graph. Load CSVW metadata first.",
                    code="NO_TABLE_GROUPS", data_ns=data_ns,
-                   execution_hash=execution_hash, target=metadata_placeholder)
+                   execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
     if len(table_groups) == 1:
@@ -225,22 +202,15 @@ def run(input_turtle: str, activity_iri: str) -> str:
         except spw_input.InputCancelled as exc:
             _add_error(out, activity, str(exc),
                        code="INPUT_CANCELLED", data_ns=data_ns,
-                       execution_hash=execution_hash, target=metadata_placeholder)
+                       execution_hash=execution_hash)
             return out.serialize(format="turtle")
         except spw_input.InputFailed as exc:
             _add_error(out, activity, str(exc),
                        code="INPUT_PROMPT_FAILED", data_ns=data_ns,
-                       execution_hash=execution_hash, target=metadata_placeholder)
+                       execution_hash=execution_hash)
             return out.serialize(format="turtle")
 
-    # Write selected TableGroup IRI to metadata placeholder for downstream compatibility
-    if metadata_placeholder is not None:
-        g.add((metadata_placeholder, RDF.value, Literal(str(selected_tg))))
-
-    prov_triples.extend(
-        spw_input.make_provenance(activity, metadata_placeholder, selected_tg)
-        if metadata_placeholder else [(activity, PROV.used, selected_tg)]
-    )
+    prov_triples.append((activity, PROV.used, selected_tg))
 
     # -----------------------------------------------------------------------
     # Phase 2: Traverse TableGroup → table → schema → columns → select
@@ -267,7 +237,7 @@ def run(input_turtle: str, activity_iri: str) -> str:
         _add_error(out, activity,
                    "No csvw:Column found in selected data source. Check CSVW metadata structure.",
                    code="NO_COLUMNS", data_ns=data_ns,
-                   execution_hash=execution_hash, target=column_placeholder)
+                   execution_hash=execution_hash)
         return out.serialize(format="turtle")
 
     if len(columns) == 1:
@@ -284,12 +254,12 @@ def run(input_turtle: str, activity_iri: str) -> str:
         except spw_input.InputCancelled as exc:
             _add_error(out, activity, str(exc),
                        code="INPUT_CANCELLED", data_ns=data_ns,
-                       execution_hash=execution_hash, target=column_placeholder)
+                       execution_hash=execution_hash)
             return out.serialize(format="turtle")
         except spw_input.InputFailed as exc:
             _add_error(out, activity, str(exc),
                        code="INPUT_PROMPT_FAILED", data_ns=data_ns,
-                       execution_hash=execution_hash, target=column_placeholder)
+                       execution_hash=execution_hash)
             return out.serialize(format="turtle")
 
     column_name = selected_col['name']
@@ -300,12 +270,8 @@ def run(input_turtle: str, activity_iri: str) -> str:
         _add_error(out, activity,
                    "Selected column has no csvw:name. Cannot match CSV header.",
                    code="NO_COLUMN_NAME", data_ns=data_ns,
-                   execution_hash=execution_hash, target=column_placeholder)
+                   execution_hash=execution_hash)
         return out.serialize(format="turtle")
-
-    # Write selected column name to placeholder
-    if column_placeholder is not None:
-        g.add((column_placeholder, RDF.value, Literal(column_name)))
 
     # -----------------------------------------------------------------------
     # Derive CSV URL and unit from graph
@@ -398,8 +364,8 @@ def run(input_turtle: str, activity_iri: str) -> str:
     out.add((result_iri, RDF.type, PPLAN.Entity))
     out.add((result_iri, RDFS.label, Literal(f"Column data: {selected_col['display']}")))
     out.add((result_iri, PROV.wasGeneratedBy, activity))
-    for inp in inputs:
-        out.add((result_iri, PROV.wasDerivedFrom, inp))
+    out.add((result_iri, PROV.wasDerivedFrom, selected_tg))
+    out.add((result_iri, PROV.wasDerivedFrom, column_entity))
 
     if out_var:
         out.add((result_iri, PPLAN.correspondsToVariable, out_var))

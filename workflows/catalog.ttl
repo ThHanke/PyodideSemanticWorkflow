@@ -282,24 +282,6 @@ spw:LoadCSVWColumnStep a p-plan:Step ;
     rdfs:label "Load column from CSVW metadata"@en ;
     rdfs:comment "Loads a column from a CSV file using CSVW metadata, preserving units"@en .
 
-# Step 1 Input: CSVW Metadata URI
-spw:CSVWMetadataURI a p-plan:Variable ;
-    p-plan:isVariableOfPlan spw:CSVWAverageTemplate ;
-    p-plan:isInputVarOf spw:LoadCSVWColumnStep ;
-    rdfs:label "CSVW Metadata URI"@en ;
-    rdfs:comment "URI of the CSVW metadata JSON file describing the CSV data"@en ;
-    spw:expectedType xsd:anyURI ;
-    spw:required true .
-
-# Step 1 Input: Column Name
-spw:CSVWColumnName a p-plan:Variable ;
-    p-plan:isVariableOfPlan spw:CSVWAverageTemplate ;
-    p-plan:isInputVarOf spw:LoadCSVWColumnStep ;
-    rdfs:label "Column Name"@en ;
-    rdfs:comment "Name of the column to load from the CSV file"@en ;
-    spw:expectedType xsd:string ;
-    spw:required true .
-
 # Step 1 Output / Step 2 Input: Loaded Column Data
 # IMPORTANT: This variable is BOTH the output of Step 1 AND the input of Step 2
 # This makes the data flow derivable from the template
